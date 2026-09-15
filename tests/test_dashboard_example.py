@@ -95,9 +95,14 @@ async def test_ranking_sorts_numerically_and_marks_podium(
     assert "Spot 1" in order[1], order
     assert "Kitchen FL" in order[2], order
     assert "Hallway" in order[3], order
-    # The currently-on bulb is flagged, the flaky one warned.
-    assert "💡" in data[0]
-    assert "⚠️" in order[1], "22 dropouts should raise a warning"
+    # Every row carries a lightbulb icon; the lit one is filled, the rest outlined.
+    assert 'icon="mdi:lightbulb"' in data[0], data[0]
+    assert "--state-light-active-color" in data[0]
+    assert 'icon="mdi:lightbulb-outline"' in order[1], order[1]
+    assert "--disabled-text-color" in order[1]
+    # The flaky bulb gets an alert icon; a healthy one does not.
+    assert 'icon="mdi:alert"' in order[1], "22 dropouts should raise a warning"
+    assert 'icon="mdi:alert"' not in data[0]
 
 
 async def test_health_card_highlights_worst_offender(hass: HomeAssistant) -> None:

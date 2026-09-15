@@ -39,6 +39,7 @@ from .const import (
     CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
     CONF_INCLUDED_ENTITIES,
+    CONF_MANUFACTURERS,
     CONF_MODE,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
@@ -105,6 +106,11 @@ class LightLifetimeTracker:
     @property
     def _included_entities(self) -> set[str]:
         return set(self.entry.options.get(CONF_INCLUDED_ENTITIES, []))
+
+    @property
+    def _manufacturers(self) -> set[str]:
+        """Allowed manufacturers; empty means no brand filtering at all."""
+        return {m for m in self.entry.options.get(CONF_MANUFACTURERS, []) if m}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -306,17 +312,29 @@ class LightLifetimeTracker:
             return entity_id in self._included_entities
         if entity_id in self._excluded_entities:
             return False
+
+        entry = er.async_get(self.hass).async_get(entity_id)
+        device = None
+        if entry is not None and entry.device_id:
+            device = dr.async_get(self.hass).async_get(entry.device_id)
+
+        # Brand filter. An empty selection means "any brand". When a filter is
+        # set, a light with no device or no manufacturer cannot match it, so it
+        # is excluded rather than silently let through.
+        allowed = self._manufacturers
+        if allowed:
+            manufacturer = (device.manufacturer or "") if device else ""
+            if manufacturer not in allowed:
+                return False
+
         if not self._exclude_aggregates:
             return True
-        entry = er.async_get(self.hass).async_get(entity_id)
         if entry is None:
             return True
         if entry.platform in AGGREGATE_PLATFORMS:
             return False
-        if entry.device_id:
-            device = dr.async_get(self.hass).async_get(entry.device_id)
-            if device and (device.model or "").strip().lower() in AGGREGATE_MODELS:
-                return False
+        if device and (device.model or "").strip().lower() in AGGREGATE_MODELS:
+            return False
         return True
 
     @callback

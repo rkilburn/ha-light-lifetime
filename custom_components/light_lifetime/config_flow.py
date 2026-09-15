@@ -11,14 +11,19 @@ from homeassistant.config_entries import (
     ConfigFlowResult,
     OptionsFlow,
 )
-from homeassistant.core import callback
-from homeassistant.helpers import selector
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import (
+    device_registry as dr,
+    entity_registry as er,
+    selector,
+)
 
 from .const import (
     CONF_COUNT_DOWNTIME,
     CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
     CONF_INCLUDED_ENTITIES,
+    CONF_MANUFACTURERS,
     CONF_MODE,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
@@ -31,7 +36,25 @@ from .const import (
 TITLE = "Light Lifetime"
 
 
-def _schema(defaults: dict[str, Any]) -> vol.Schema:
+def _manufacturer_options(hass: HomeAssistant) -> list[str]:
+    """Distinct manufacturers across the light devices on this instance.
+
+    Built from the registries rather than hardcoded, so the dropdown offers
+    exactly the brands actually present -- and stays correct as hardware changes.
+    """
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+    found: set[str] = set()
+    for entry in ent_reg.entities.values():
+        if entry.domain != "light" or not entry.device_id:
+            continue
+        device = dev_reg.async_get(entry.device_id)
+        if device and device.manufacturer:
+            found.add(device.manufacturer)
+    return sorted(found)
+
+
+def _schema(hass: HomeAssistant, defaults: dict[str, Any]) -> vol.Schema:
     """Build the setup/options form.
 
     Two ways to choose what gets tracked: "all" (opt out -- track every light
@@ -47,6 +70,18 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                     options=[MODE_ALL, MODE_SELECTED],
                     translation_key=CONF_MODE,
                     mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
+            vol.Optional(
+                CONF_MANUFACTURERS,
+                default=defaults.get(CONF_MANUFACTURERS, []),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_manufacturer_options(hass),
+                    multiple=True,
+                    custom_value=True,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    sort=True,
                 )
             ),
             vol.Optional(
@@ -89,7 +124,9 @@ class LightLifetimeConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self.async_create_entry(title=TITLE, data={}, options=user_input)
 
-        return self.async_show_form(step_id="user", data_schema=_schema({}))
+        return self.async_show_form(
+            step_id="user", data_schema=_schema(self.hass, {})
+        )
 
     @staticmethod
     @callback
@@ -106,5 +143,6 @@ class LightLifetimeOptionsFlow(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
         return self.async_show_form(
-            step_id="init", data_schema=_schema(dict(self.config_entry.options))
+            step_id="init",
+            data_schema=_schema(self.hass, dict(self.config_entry.options)),
         )

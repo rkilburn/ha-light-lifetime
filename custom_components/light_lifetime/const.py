@@ -19,6 +19,7 @@ HEARTBEAT_INTERVAL: Final = 300
 # Config / options keys
 CONF_MODE: Final = "mode"
 CONF_INCLUDED_ENTITIES: Final = "included_entities"
+CONF_MANUFACTURERS: Final = "manufacturers"
 CONF_EXCLUDE_AGGREGATES: Final = "exclude_aggregates"
 CONF_EXCLUDED_ENTITIES: Final = "excluded_entities"
 CONF_COUNT_DOWNTIME: Final = "count_downtime"

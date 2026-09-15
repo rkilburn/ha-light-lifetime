@@ -59,10 +59,16 @@ directory and restart.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | Which lights to track | Track all | Opt-out or opt-in, as above. |
+| Brands to track | all | Multi-select of the manufacturers found on your system. Empty means every brand. Track-all mode only. |
 | Lights to track | none | Opt-in mode only: the explicit allow-list. |
 | Lights to ignore | none | Track-all mode only: the exclusions. |
 | Exclude groups and rooms | on | Skip light entities that aggregate other lights (Hue Rooms and Zones, HA light groups). Leaving these in double-counts every member bulb. |
 | Count downtime as on-time | off | When Home Assistant is offline, assume lights that were on stayed on. Off means only observed time counts. |
+
+The brand dropdown is built from the manufacturers actually present on your instance, read
+from the device registry, so it lists real values rather than a guessed set. You can also type
+a brand that is not listed yet. A light with no manufacturer recorded cannot match a brand
+filter, so it is excluded while one is active.
 
 Narrowing the selection removes the now-unused sensors, but their counters are **kept** in the
 ledger — re-include a light later and its history is still there.

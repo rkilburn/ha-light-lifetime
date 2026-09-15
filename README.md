@@ -49,6 +49,9 @@ directory and restart.
 
 ## Options
 
+Setup asks for the mode first, then shows only the options that apply to it — a config flow
+schema is static, so fields cannot be hidden reactively within a single form.
+
 **Two ways to choose what gets tracked**, set at install and changeable later via Configure:
 
 | Mode | Behaviour |

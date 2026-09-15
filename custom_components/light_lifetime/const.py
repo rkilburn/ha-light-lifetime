@@ -19,6 +19,10 @@ HEARTBEAT_INTERVAL: Final = 300
 # Config / options keys
 CONF_MODE: Final = "mode"
 CONF_INCLUDED_ENTITIES: Final = "included_entities"
+# Form-only grouping key. A section renders a heading and description above
+# its fields; the value is flattened away before options are stored, so the
+# persisted shape stays flat.
+SECTION_BRANDS: Final = "brand_filter"
 CONF_MANUFACTURERS: Final = "manufacturers"
 CONF_EXCLUDE_AGGREGATES: Final = "exclude_aggregates"
 CONF_EXCLUDED_ENTITIES: Final = "excluded_entities"

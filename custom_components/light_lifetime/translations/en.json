@@ -3,22 +3,47 @@
     "step": {
       "user": {
         "title": "Light Lifetime",
-        "description": "Track lifetime on-hours, dropouts and age for every light. Lights are discovered automatically, including ones you add later.",
+        "description": "Track lifetime on-hours, dropouts and age for every light.",
         "data": {
-          "mode": "Which lights to track",
-          "manufacturers": "Brands to track",
-          "included_entities": "Lights to track (opt-in mode only)",
-          "excluded_entities": "Lights to ignore (track-all mode only)",
+          "mode": "Which lights to track"
+        },
+        "data_description": {
+          "mode": "Track every light and opt individual ones out, or opt in by picking lights yourself."
+        }
+      },
+      "all": {
+        "title": "Tracking all lights",
+        "description": "These lights are tracked automatically, including ones you pair later.",
+        "data": {
+          "excluded_entities": "Lights to ignore",
           "exclude_aggregates": "Exclude groups and rooms",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
-          "mode": "Track all lights and pick up new ones automatically, or track only the lights you pick.",
-          "included_entities": "Used in opt-in mode. Only these lights are tracked; new lights are not added automatically.",
-          "excluded_entities": "Used in track-all mode. These lights are skipped.",
+          "excluded_entities": "These lights will not be tracked.",
           "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
-          "manufacturers": "Track only lights from these manufacturers. Leave empty for all brands. Applies in track-all mode; ignored when you pick lights explicitly."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+        },
+        "sections": {
+          "brand_filter": {
+            "name": "Brands to track",
+            "description": "Track only lights from these manufacturers. Leave empty to track every brand.",
+            "data": {
+              "manufacturers": "Add brand"
+            }
+          }
+        }
+      },
+      "selected": {
+        "title": "Tracking selected lights",
+        "description": "Only the lights you pick are tracked. New lights are not added automatically.",
+        "data": {
+          "included_entities": "Lights to track",
+          "count_downtime": "Count Home Assistant downtime as on-time"
+        },
+        "data_description": {
+          "included_entities": "Only these lights will be tracked.",
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
         }
       }
     },
@@ -30,21 +55,47 @@
     "step": {
       "init": {
         "title": "Light Lifetime options",
+        "description": "Track lifetime on-hours, dropouts and age for every light.",
         "data": {
-          "mode": "Which lights to track",
-          "manufacturers": "Brands to track",
-          "included_entities": "Lights to track (opt-in mode only)",
-          "excluded_entities": "Lights to ignore (track-all mode only)",
+          "mode": "Which lights to track"
+        },
+        "data_description": {
+          "mode": "Track every light and opt individual ones out, or opt in by picking lights yourself."
+        }
+      },
+      "all": {
+        "title": "Tracking all lights",
+        "description": "These lights are tracked automatically, including ones you pair later.",
+        "data": {
+          "excluded_entities": "Lights to ignore",
           "exclude_aggregates": "Exclude groups and rooms",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
-          "mode": "Track all lights and pick up new ones automatically, or track only the lights you pick.",
-          "included_entities": "Used in opt-in mode. Only these lights are tracked; new lights are not added automatically.",
-          "excluded_entities": "Used in track-all mode. These lights are skipped.",
+          "excluded_entities": "These lights will not be tracked.",
           "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
-          "manufacturers": "Track only lights from these manufacturers. Leave empty for all brands. Applies in track-all mode; ignored when you pick lights explicitly."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+        },
+        "sections": {
+          "brand_filter": {
+            "name": "Brands to track",
+            "description": "Track only lights from these manufacturers. Leave empty to track every brand.",
+            "data": {
+              "manufacturers": "Add brand"
+            }
+          }
+        }
+      },
+      "selected": {
+        "title": "Tracking selected lights",
+        "description": "Only the lights you pick are tracked. New lights are not added automatically.",
+        "data": {
+          "included_entities": "Lights to track",
+          "count_downtime": "Count Home Assistant downtime as on-time"
+        },
+        "data_description": {
+          "included_entities": "Only these lights will be tracked.",
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
         }
       }
     }

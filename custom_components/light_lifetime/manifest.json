@@ -1,4 +1,6 @@
 {
+  "domain": "light_lifetime",
+  "name": "Light Lifetime",
   "after_dependencies": [
     "recorder"
   ],
@@ -7,11 +9,9 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/rkilburn/ha-light-lifetime",
-  "domain": "light_lifetime",
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/rkilburn/ha-light-lifetime/issues",
-  "name": "Light Lifetime",
   "requirements": [],
   "version": "0.3.0"
 }

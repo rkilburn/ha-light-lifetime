@@ -431,6 +431,32 @@ class LightLifetimeTracker:
         record = self._data.get(entity_id)
         return _parse(record.get(ATTR_TRACKED_SINCE)) if record else None
 
+    # ------------------------------------------------------------------
+    # Whole-collection totals
+    # ------------------------------------------------------------------
+    # The ledger retains history for lights that have since been excluded, so
+    # each aggregate filters to what is currently in scope.
+    @callback
+    def total_on_hours(self) -> float:
+        return (
+            sum(self.on_seconds(e) for e in self._data if self._should_track(e))
+            / 3600.0
+        )
+
+    @callback
+    def total_dropouts(self) -> int:
+        return sum(self.dropouts(e) for e in self._data if self._should_track(e))
+
+    @callback
+    def lights_tracked(self) -> int:
+        return sum(1 for e in self._data if self._should_track(e))
+
+    @callback
+    def lights_on(self) -> int:
+        return sum(
+            1 for e in self._data if self._should_track(e) and self.is_on(e)
+        )
+
     @callback
     def is_on(self, entity_id: str) -> bool:
         record = self._data.get(entity_id)

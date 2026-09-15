@@ -32,9 +32,11 @@ from .const import (
     CONF_INCLUDED_ENTITIES,
     CONF_MANUFACTURERS,
     CONF_MODE,
+    CONF_SUMMARY_SENSORS,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
     DEFAULT_MODE,
+    DEFAULT_SUMMARY_SENSORS,
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
@@ -118,6 +120,10 @@ def _all_schema(hass: HomeAssistant, defaults: dict[str, Any]) -> vol.Schema:
                 ),
             ): selector.BooleanSelector(),
             vol.Optional(
+                CONF_SUMMARY_SENSORS,
+                default=defaults.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS),
+            ): selector.BooleanSelector(),
+            vol.Optional(
                 CONF_COUNT_DOWNTIME,
                 default=defaults.get(CONF_COUNT_DOWNTIME, DEFAULT_COUNT_DOWNTIME),
             ): selector.BooleanSelector(),
@@ -135,6 +141,10 @@ def _selected_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
             ),
+            vol.Optional(
+                CONF_SUMMARY_SENSORS,
+                default=defaults.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS),
+            ): selector.BooleanSelector(),
             vol.Optional(
                 CONF_COUNT_DOWNTIME,
                 default=defaults.get(CONF_COUNT_DOWNTIME, DEFAULT_COUNT_DOWNTIME),

@@ -22,6 +22,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTR_FIRST_SEEN_SOURCE,
+    CONF_SUMMARY_SENSORS,
+    DEFAULT_SUMMARY_SENSORS,
     ATTR_TRACKED_SINCE,
     DOMAIN,
     SENSOR_KEYS,
@@ -61,6 +63,16 @@ async def async_setup_entry(
     # The ledger keeps history for lights that are no longer tracked (so their
     # counters survive being re-included later), but only currently-tracked
     # lights get entities.
+    if entry.options.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS):
+        async_add_entities(
+            [
+                TotalOnHoursSensor(tracker, entry),
+                LightsTrackedSensor(tracker, entry),
+                LightsOnSensor(tracker, entry),
+                TotalDropoutsSensor(tracker, entry),
+            ]
+        )
+
     for entity_id in tracker.tracked_entities():
         if tracker.should_track(entity_id):
             _add(entity_id)
@@ -249,3 +261,89 @@ class LightAgeSensor(LightLifetimeSensorBase):
             "is_floor": self._tracker.first_seen_source(self._source_entity_id)
             == SOURCE_UNKNOWN,
         }
+
+
+class SummarySensorBase(SensorEntity):
+    """A whole-collection total, not tied to any single light."""
+
+    _attr_should_poll = False
+    _key: str = ""
+
+    def __init__(self, tracker: LightLifetimeTracker, entry: ConfigEntry) -> None:
+        self._tracker = tracker
+        self._attr_unique_id = f"{entry.entry_id}_summary_{self._key}"
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _refresh(*_args: Any) -> None:
+            self.async_write_ha_state()
+
+        # Any per-light change moves the aggregate, so listen to both signals.
+        for signal in (SIGNAL_UPDATED, SIGNAL_REFRESH, SIGNAL_NEW_ENTITY):
+            self.async_on_remove(
+                async_dispatcher_connect(self.hass, signal, _refresh)
+            )
+
+
+class TotalOnHoursSensor(SummarySensorBase):
+    """Combined on-hours across every tracked light."""
+
+    _key = "on_hours"
+    _attr_name = "Lights total hours"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:lightbulb-group-outline"
+
+    @property
+    def native_value(self) -> float:
+        return round(self._tracker.total_on_hours(), 2)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        count = self._tracker.lights_tracked()
+        average = self._tracker.total_on_hours() / count if count else 0.0
+        return {"average_hours_per_light": round(average, 2)}
+
+
+class LightsTrackedSensor(SummarySensorBase):
+    """How many lights are being tracked."""
+
+    _key = "tracked"
+    _attr_name = "Lights tracked"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "lights"
+    _attr_icon = "mdi:lightbulb-multiple-outline"
+
+    @property
+    def native_value(self) -> int:
+        return self._tracker.lights_tracked()
+
+
+class LightsOnSensor(SummarySensorBase):
+    """How many tracked lights are on right now."""
+
+    _key = "lit"
+    _attr_name = "Lights on"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "lights"
+    _attr_icon = "mdi:lightbulb-on-outline"
+
+    @property
+    def native_value(self) -> int:
+        return self._tracker.lights_on()
+
+
+class TotalDropoutsSensor(SummarySensorBase):
+    """Combined dropout count across every tracked light."""
+
+    _key = "dropouts"
+    _attr_name = "Lights total dropouts"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "dropouts"
+    _attr_icon = "mdi:lan-disconnect"
+
+    @property
+    def native_value(self) -> int:
+        return self._tracker.total_dropouts()

@@ -31,6 +31,19 @@ Four sensors per light, attached to the bulb's own device:
 | `sensor.<light>_first_seen` | `timestamp` | — | When first added, if knowable |
 | `sensor.<light>_age` | `duration` (h) | `measurement` | Hours since first connected |
 
+Plus four sensors covering every tracked light at once, used by the example dashboard's
+badges and handy for whole-collection automations:
+
+| Sensor | Meaning |
+| --- | --- |
+| `sensor.lights_total_hours` | Combined on-hours across all tracked lights |
+| `sensor.lights_tracked` | How many lights are being tracked |
+| `sensor.lights_on` | How many are on right now |
+| `sensor.lights_total_dropouts` | Combined dropout count |
+
+These can be turned off with the **Overall light sensors** option, though the prebuilt
+dashboard depends on them.
+
 `on_hours` and `dropouts` carry `state_class: total_increasing`, so Home Assistant records them
 into **long-term statistics** — which are never purged. You get permanent hourly history per
 bulb, which an `input_number` can never give you.
@@ -68,6 +81,7 @@ schema is static, so fields cannot be hidden reactively within a single form.
 | Lights to track | none | Opt-in mode only: the explicit allow-list. |
 | Lights to ignore | none | Track-all mode only: the exclusions. |
 | Exclude groups and rooms | on | Skip light entities that aggregate other lights (Hue Rooms and Zones, HA light groups). Leaving these in double-counts every member bulb. |
+| Overall light sensors | on | Create the four whole-collection sensors above. Required by the prebuilt dashboard. |
 | Count downtime as on-time | off | When Home Assistant is offline, assume lights that were on stayed on. Off means only observed time counts. |
 
 The brand dropdown is built from the manufacturers actually present on your instance, read
@@ -163,8 +177,8 @@ A ready-made dashboard lives in [`examples/dashboard.yaml`](examples/dashboard.y
 into a dashboard in raw YAML mode. It needs **no custom cards**, and every card discovers bulbs
 from the entities themselves, so newly tracked lights appear without editing anything.
 
-It gives you a fleet summary, a ranked leaderboard with inline bars, and a connection-health
-panel that surfaces the bulbs dropping out most:
+It gives you four summary badges across the top, then a ranked leaderboard with inline bars
+and a connection-health panel that surfaces the bulbs dropping out most:
 
 ```
 |    | Bulb               |            | Hours |
@@ -175,7 +189,8 @@ panel that surfaces the bulbs dropping out most:
 |  4 | En Suite Shower    | ████████·· |  34.7 |
 ```
 
-Bulbs currently lit are flagged, and any bulb past 10 dropouts is marked for investigation.
+Bulbs currently lit are flagged, any bulb past 10 dropouts is marked for investigation, and
+names are prefixed with their area where that disambiguates them.
 
 ## Design notes
 

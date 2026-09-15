@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -10,6 +11,7 @@ from custom_components.light_lifetime.const import (
     CONF_EXCLUDED_ENTITIES,
     CONF_INCLUDED_ENTITIES,
     CONF_MODE,
+    CONF_SUMMARY_SENSORS,
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
@@ -31,6 +33,15 @@ def _bulb(hass: HomeAssistant, object_id: str, unique: str) -> str:
     return ent_reg.async_get_or_create(
         "light", "hue", unique, suggested_object_id=object_id, device_id=device.id
     ).entity_id
+
+
+def _per_light(hass: HomeAssistant) -> list:
+    """Per-light sensors only; fleet aggregates carry no source_entity_id."""
+    return [
+        s
+        for s in hass.states.async_all("sensor")
+        if "source_entity_id" in s.attributes
+    ]
 
 
 async def _setup(hass: HomeAssistant, options: dict):
@@ -79,13 +90,13 @@ async def test_opt_in_mode_ignores_new_lights(hass: HomeAssistant) -> None:
     _, tracker = await _setup(
         hass, {CONF_MODE: MODE_SELECTED, CONF_INCLUDED_ENTITIES: [a]}
     )
-    before = len(hass.states.async_all("sensor"))
+    before = len(_per_light(hass))
 
     later = _bulb(hass, "new_bulb", "b9")
     hass.states.async_set(later, "on")
     await hass.async_block_till_done()
 
-    assert len(hass.states.async_all("sensor")) == before
+    assert len(_per_light(hass)) == before
     assert later not in tracker.tracked_entities()
 
 
@@ -94,13 +105,13 @@ async def test_opt_out_mode_still_auto_discovers(hass: HomeAssistant) -> None:
     hass.states.async_set(a, "off")
     await hass.async_block_till_done()
     await _setup(hass, {CONF_MODE: MODE_ALL})
-    before = len(hass.states.async_all("sensor"))
+    before = len(_per_light(hass))
 
     later = _bulb(hass, "new_bulb", "b9")
     hass.states.async_set(later, "on")
     await hass.async_block_till_done()
 
-    assert len(hass.states.async_all("sensor")) == before + 4
+    assert len(_per_light(hass)) == before + 4
 
 
 async def test_narrowing_selection_removes_stale_entities(
@@ -114,12 +125,74 @@ async def test_narrowing_selection_removes_stale_entities(
     await hass.async_block_till_done()
 
     entry, _ = await _setup(hass, {CONF_MODE: MODE_ALL})
-    assert len(hass.states.async_all("sensor")) == 8  # 4 per light
+    assert len(_per_light(hass)) == 8  # 4 per light
 
     hass.config_entries.async_update_entry(
         entry, options={CONF_MODE: MODE_ALL, CONF_EXCLUDED_ENTITIES: [b]}
     )
     await hass.async_block_till_done()
 
-    remaining = hass.states.async_all("sensor")
+    remaining = _per_light(hass)
     assert len(remaining) == 4, [s.entity_id for s in remaining]
+
+
+async def test_summary_sensors_created_by_default(hass: HomeAssistant) -> None:
+    """The prebuilt dashboard needs these, so they are on unless turned off."""
+    bulb = _bulb(hass, "kitchen_fl", "b1")
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {CONF_MODE: MODE_ALL})
+
+    ids = {s.entity_id for s in hass.states.async_all("sensor")}
+    assert "sensor.lights_total_hours" in ids
+    assert "sensor.lights_tracked" in ids
+    assert "sensor.lights_on" in ids
+    assert "sensor.lights_total_dropouts" in ids
+
+
+async def test_summary_sensors_can_be_disabled(hass: HomeAssistant) -> None:
+    bulb = _bulb(hass, "kitchen_fl", "b1")
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {CONF_MODE: MODE_ALL, CONF_SUMMARY_SENSORS: False})
+
+    ids = {s.entity_id for s in hass.states.async_all("sensor")}
+    assert not any(i.startswith("sensor.lights_") for i in ids), ids
+    # Per-light sensors are unaffected.
+    assert len(_per_light(hass)) == 4
+
+
+async def test_summary_totals_reflect_tracked_lights(hass: HomeAssistant) -> None:
+    a = _bulb(hass, "kitchen_fl", "b1")
+    b = _bulb(hass, "hallway", "b2")
+    hass.states.async_set(a, "on")
+    hass.states.async_set(b, "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass, {CONF_MODE: MODE_ALL})
+
+    tracker._data[a]["on_seconds"] = 3600.0
+    tracker._data[b]["on_seconds"] = 1800.0
+    tracker._data[b]["dropouts"] = 3
+
+    assert tracker.total_on_hours() == pytest.approx(1.5, abs=0.01)
+    assert tracker.total_dropouts() == 3
+    assert tracker.lights_tracked() == 2
+    assert tracker.lights_on() == 1
+
+
+async def test_summary_totals_ignore_excluded_lights(hass: HomeAssistant) -> None:
+    """History is retained for excluded lights but must not inflate totals."""
+    a = _bulb(hass, "kitchen_fl", "b1")
+    b = _bulb(hass, "hallway", "b2")
+    hass.states.async_set(a, "off")
+    hass.states.async_set(b, "off")
+    await hass.async_block_till_done()
+    entry, tracker = await _setup(
+        hass, {CONF_MODE: MODE_ALL, CONF_EXCLUDED_ENTITIES: [b]}
+    )
+
+    tracker._ensure(b)["on_seconds"] = 7200.0
+    tracker._data[a]["on_seconds"] = 3600.0
+
+    assert tracker.lights_tracked() == 1
+    assert tracker.total_on_hours() == pytest.approx(1.0, abs=0.01)

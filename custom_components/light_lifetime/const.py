@@ -23,6 +23,7 @@ CONF_INCLUDED_ENTITIES: Final = "included_entities"
 # its fields; the value is flattened away before options are stored, so the
 # persisted shape stays flat.
 SECTION_BRANDS: Final = "brand_filter"
+CONF_SUMMARY_SENSORS: Final = "summary_sensors"
 CONF_MANUFACTURERS: Final = "manufacturers"
 CONF_EXCLUDE_AGGREGATES: Final = "exclude_aggregates"
 CONF_EXCLUDED_ENTITIES: Final = "excluded_entities"
@@ -35,6 +36,8 @@ MODE_SELECTED: Final = "selected"
 DEFAULT_MODE: Final = MODE_ALL
 
 DEFAULT_EXCLUDE_AGGREGATES: Final = True
+# On by default: the prebuilt example dashboard depends on these.
+DEFAULT_SUMMARY_SENSORS: Final = True
 DEFAULT_COUNT_DOWNTIME: Final = False
 
 # Device models that represent a group of bulbs rather than a physical light.

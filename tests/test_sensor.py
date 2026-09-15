@@ -225,10 +225,11 @@ async def test_full_cycle_through_state_machine(hass: HomeAssistant) -> None:
 
 
 def _find_sensor(hass: HomeAssistant, suffix: str):
+    """Find a per-light sensor, ignoring the fleet-level aggregates."""
     for state in hass.states.async_all("sensor"):
-        if state.entity_id.endswith(suffix):
+        if state.entity_id.endswith(suffix) and "source_entity_id" in state.attributes:
             return state
-    raise AssertionError(f"sensor ending in {suffix} not found")
+    raise AssertionError(f"per-light sensor ending in {suffix} not found")
 
 
 def async_dispatcher_send_state(hass: HomeAssistant, entity_id: str) -> None:

@@ -17,12 +17,14 @@
         "data": {
           "excluded_entities": "Lights to ignore",
           "exclude_aggregates": "Exclude groups and rooms",
+          "summary_sensors": "Overall light sensors",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
           "excluded_entities": "These lights will not be tracked.",
           "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "summary_sensors": "Create four sensors totalling all tracked lights: total hours, lights tracked, lights on now, and total dropouts. Required by the prebuilt example dashboard."
         },
         "sections": {
           "brand_filter": {
@@ -39,11 +41,13 @@
         "description": "Only the lights you pick are tracked. New lights are not added automatically.",
         "data": {
           "included_entities": "Lights to track",
+          "summary_sensors": "Overall light sensors",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
           "included_entities": "Only these lights will be tracked.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "summary_sensors": "Create four sensors totalling all tracked lights: total hours, lights tracked, lights on now, and total dropouts. Required by the prebuilt example dashboard."
         }
       }
     },
@@ -69,12 +73,14 @@
         "data": {
           "excluded_entities": "Lights to ignore",
           "exclude_aggregates": "Exclude groups and rooms",
+          "summary_sensors": "Overall light sensors",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
           "excluded_entities": "These lights will not be tracked.",
           "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "summary_sensors": "Create four sensors totalling all tracked lights: total hours, lights tracked, lights on now, and total dropouts. Required by the prebuilt example dashboard."
         },
         "sections": {
           "brand_filter": {
@@ -91,11 +97,13 @@
         "description": "Only the lights you pick are tracked. New lights are not added automatically.",
         "data": {
           "included_entities": "Lights to track",
+          "summary_sensors": "Overall light sensors",
           "count_downtime": "Count Home Assistant downtime as on-time"
         },
         "data_description": {
           "included_entities": "Only these lights will be tracked.",
-          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed."
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "summary_sensors": "Create four sensors totalling all tracked lights: total hours, lights tracked, lights on now, and total dropouts. Required by the prebuilt example dashboard."
         }
       }
     }

@@ -38,21 +38,31 @@ def _populate(hass: HomeAssistant) -> None:
         ("hallway", "Hallway", "0.0", "0", "unknown", False),
     ]
     for slug, name, hours, drops, age, lit in fleet:
+        # source_entity_id is what the cards use to tell per-light sensors
+        # apart from the fleet-level aggregates.
+        src = {"source_entity_id": f"light.{slug}"}
         hass.states.async_set(
             f"sensor.{slug}_on_hours",
             hours,
-            {"friendly_name": f"{name} On hours", "currently_on": lit},
+            {"friendly_name": f"{name} On hours", "currently_on": lit, **src},
         )
         hass.states.async_set(
-            f"sensor.{slug}_dropouts", drops, {"friendly_name": f"{name} Dropouts"}
+            f"sensor.{slug}_dropouts",
+            drops,
+            {"friendly_name": f"{name} Dropouts", **src},
         )
-        hass.states.async_set(f"sensor.{slug}_age", age, {"friendly_name": f"{name} Age"})
+        hass.states.async_set(
+            f"sensor.{slug}_age", age, {"friendly_name": f"{name} Age", **src}
+        )
 
 
-async def test_dashboard_is_valid_yaml() -> None:
+async def test_dashboard_is_a_full_dashboard_config() -> None:
+    """The raw configuration editor requires a top-level `views` array."""
     doc = yaml.safe_load(DASHBOARD.read_text())
-    assert doc["type"] == "sections"
-    assert doc["sections"], "dashboard defines no sections"
+    assert isinstance(doc.get("views"), list), "top-level 'views' array is required"
+    view = doc["views"][0]
+    assert view["type"] == "sections"
+    assert view["sections"], "view defines no sections"
 
 
 async def test_every_template_renders(hass: HomeAssistant) -> None:
@@ -60,7 +70,7 @@ async def test_every_template_renders(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     templates = _templates()
-    assert len(templates) >= 3, f"expected several templates, found {len(templates)}"
+    assert len(templates) >= 2, f"expected several templates, found {len(templates)}"
     for source in templates:
         rendered = Template(source, hass).async_render(parse_result=False)
         assert rendered.strip(), "template rendered empty"
@@ -105,7 +115,9 @@ async def test_health_card_highlights_worst_offender(hass: HomeAssistant) -> Non
 
 async def test_health_card_handles_a_clean_fleet(hass: HomeAssistant) -> None:
     hass.states.async_set(
-        "sensor.kitchen_fl_dropouts", "0", {"friendly_name": "Kitchen FL Dropouts"}
+        "sensor.kitchen_fl_dropouts",
+        "0",
+        {"friendly_name": "Kitchen FL Dropouts", "source_entity_id": "light.kitchen_fl"},
     )
     await hass.async_block_till_done()
 
@@ -114,14 +126,32 @@ async def test_health_card_handles_a_clean_fleet(hass: HomeAssistant) -> None:
     assert "No dropouts recorded" in rendered
 
 
-async def test_fleet_summary_totals(hass: HomeAssistant) -> None:
+async def test_summary_sensors_are_excluded_from_per_light_cards(
+    hass: HomeAssistant,
+) -> None:
+    """Fleet totals end in _on_hours/_dropouts but must not rank as bulbs."""
     _populate(hass)
+    hass.states.async_set(
+        "sensor.lights_total_hours", "91.8", {"friendly_name": "Lights total hours"}
+    )
+    hass.states.async_set(
+        "sensor.lights_total_dropouts", "24", {"friendly_name": "Lights total dropouts"}
+    )
     await hass.async_block_till_done()
 
-    summary = next(t for t in _templates() if "bulbs tracked" in t)
-    rendered = Template(summary, hass).async_render(parse_result=False)
-    assert "92 hours" in rendered, rendered  # 43.3 + 22.0 + 26.5 + 0.0
-    assert "**4** bulbs tracked" in rendered
-    assert "**1** on now" in rendered
-    assert "**24** dropouts" in rendered
-    assert "530 days" in rendered  # 12724 h
+    for source in _templates():
+        rendered = Template(source, hass).async_render(parse_result=False)
+        assert "Lights total hours" not in rendered
+        assert "Lights total dropouts" not in rendered
+
+
+async def test_badges_reference_the_summary_sensors(hass: HomeAssistant) -> None:
+    """The prebuilt dashboard depends on the overall light sensors existing."""
+    view = yaml.safe_load(DASHBOARD.read_text())["views"][0]
+    referenced = {b["entity"] for b in view["badges"]}
+    assert referenced == {
+        "sensor.lights_total_hours",
+        "sensor.lights_on",
+        "sensor.lights_tracked",
+        "sensor.lights_total_dropouts",
+    }, referenced

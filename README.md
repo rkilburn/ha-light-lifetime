@@ -159,39 +159,23 @@ twice will not double-count.
 
 ## Dashboard
 
-No custom cards required. This sorts every tracked bulb by on-hours:
+A ready-made dashboard lives in [`examples/dashboard.yaml`](examples/dashboard.yaml) — paste it
+into a dashboard in raw YAML mode. It needs **no custom cards**, and every card discovers bulbs
+from the entities themselves, so newly tracked lights appear without editing anything.
 
-```yaml
-type: entities
-title: Bulb lifetime
-entities:
-  - entity: sensor.kitchen_fl_on_hours
-  - entity: sensor.kitchen_fr_on_hours
-  - entity: sensor.living_room_lamp_on_hours
+It gives you a fleet summary, a ranked leaderboard with inline bars, and a connection-health
+panel that surfaces the bulbs dropping out most:
+
+```
+|    | Bulb               |            | Hours |
+|---:|--------------------|------------|------:|
+| 🥇 | Bed Right          | ██████████ |  43.3 |
+| 🥈 | Bed Left           | ██████████ |  43.3 |
+| 🥉 | Lamp               | ████████·· |  35.0 |
+|  4 | En Suite Shower    | ████████·· |  34.7 |
 ```
 
-For a self-maintaining table that picks up new bulbs on its own, use a Markdown card:
-
-```yaml
-type: markdown
-content: |
-  | Bulb | On hours | Dropouts | Age (days) |
-  |---|---:|---:|---:|
-  {% set ns = namespace(rows=[]) %}
-  {%- for s in states.sensor | selectattr('entity_id', 'search', '_on_hours$') -%}
-    {%- set base = s.entity_id[:-9] -%}
-    {%- set age = states(base ~ '_age') -%}
-    {%- set ns.rows = ns.rows + [(
-         s.state | float(0),
-         s.name | replace(' On hours', ''),
-         states(base ~ '_dropouts'),
-         (age | float(0) / 24) | round(0) | int if age not in ['unknown', 'unavailable'] else '?'
-       )] -%}
-  {%- endfor -%}
-  {% for hours, name, drops, age in ns.rows | sort(reverse=true) %}
-  | {{ name }} | {{ hours | round(1) }} | {{ drops }} | {{ age }} |
-  {%- endfor %}
-```
+Bulbs currently lit are flagged, and any bulb past 10 dropouts is marked for investigation.
 
 ## Design notes
 

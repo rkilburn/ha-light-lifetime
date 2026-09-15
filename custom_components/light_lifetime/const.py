@@ -17,9 +17,17 @@ SAVE_DELAY: Final = 60
 HEARTBEAT_INTERVAL: Final = 300
 
 # Config / options keys
+CONF_MODE: Final = "mode"
+CONF_INCLUDED_ENTITIES: Final = "included_entities"
 CONF_EXCLUDE_AGGREGATES: Final = "exclude_aggregates"
 CONF_EXCLUDED_ENTITIES: Final = "excluded_entities"
 CONF_COUNT_DOWNTIME: Final = "count_downtime"
+
+# "all": track every light except the exclusions (new lights auto-tracked).
+# "selected": track only the chosen lights (new lights are NOT auto-tracked).
+MODE_ALL: Final = "all"
+MODE_SELECTED: Final = "selected"
+DEFAULT_MODE: Final = MODE_ALL
 
 DEFAULT_EXCLUDE_AGGREGATES: Final = True
 DEFAULT_COUNT_DOWNTIME: Final = False
@@ -45,6 +53,11 @@ ATTR_ON_SINCE: Final = "on_since"
 
 SOURCE_REGISTRY: Final = "registry"
 SOURCE_UNKNOWN: Final = "unknown"
+
+# Sensor suffixes. Order matters only in that lookups must match the whole
+# key -- "on_hours" and "first_seen" contain underscores, so a naive
+# rsplit("_", 1) on a unique_id silently mis-parses them.
+SENSOR_KEYS: Final = ("on_hours", "dropouts", "first_seen", "age")
 
 SIGNAL_NEW_ENTITY: Final = f"{DOMAIN}_new_entity"
 SIGNAL_UPDATED: Final = f"{DOMAIN}_updated"

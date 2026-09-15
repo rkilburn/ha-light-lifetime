@@ -38,10 +38,14 @@ from .const import (
     CONF_COUNT_DOWNTIME,
     CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
+    CONF_INCLUDED_ENTITIES,
+    CONF_MODE,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
+    DEFAULT_MODE,
     EPOCH_SENTINEL_YEAR,
     HEARTBEAT_INTERVAL,
+    MODE_SELECTED,
     SAVE_DELAY,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
@@ -91,8 +95,16 @@ class LightLifetimeTracker:
         return self.entry.options.get(CONF_COUNT_DOWNTIME, DEFAULT_COUNT_DOWNTIME)
 
     @property
+    def _mode(self) -> str:
+        return self.entry.options.get(CONF_MODE, DEFAULT_MODE)
+
+    @property
     def _excluded_entities(self) -> set[str]:
         return set(self.entry.options.get(CONF_EXCLUDED_ENTITIES, []))
+
+    @property
+    def _included_entities(self) -> set[str]:
+        return set(self.entry.options.get(CONF_INCLUDED_ENTITIES, []))
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -282,7 +294,16 @@ class LightLifetimeTracker:
     # Entity selection
     # ------------------------------------------------------------------
     @callback
+    def should_track(self, entity_id: str) -> bool:
+        """Public wrapper so the sensor platform can apply the same rules."""
+        return self._should_track(entity_id)
+
+    @callback
     def _should_track(self, entity_id: str) -> bool:
+        # Opt-in mode: only the explicitly chosen lights, nothing else. New
+        # lights are deliberately not picked up -- that is the point of opting in.
+        if self._mode == MODE_SELECTED:
+            return entity_id in self._included_entities
         if entity_id in self._excluded_entities:
             return False
         if not self._exclude_aggregates:

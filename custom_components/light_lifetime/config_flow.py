@@ -18,17 +18,49 @@ from .const import (
     CONF_COUNT_DOWNTIME,
     CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
+    CONF_INCLUDED_ENTITIES,
+    CONF_MODE,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
+    DEFAULT_MODE,
     DOMAIN,
+    MODE_ALL,
+    MODE_SELECTED,
 )
 
 TITLE = "Light Lifetime"
 
 
 def _schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Build the setup/options form.
+
+    Two ways to choose what gets tracked: "all" (opt out -- track every light
+    except the exclusions, and pick up new lights automatically) or "selected"
+    (opt in -- track only the lights listed, and ignore everything else).
+    """
     return vol.Schema(
         {
+            vol.Required(
+                CONF_MODE, default=defaults.get(CONF_MODE, DEFAULT_MODE)
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[MODE_ALL, MODE_SELECTED],
+                    translation_key=CONF_MODE,
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
+            vol.Optional(
+                CONF_INCLUDED_ENTITIES,
+                default=defaults.get(CONF_INCLUDED_ENTITIES, []),
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="light", multiple=True)
+            ),
+            vol.Optional(
+                CONF_EXCLUDED_ENTITIES,
+                default=defaults.get(CONF_EXCLUDED_ENTITIES, []),
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="light", multiple=True)
+            ),
             vol.Optional(
                 CONF_EXCLUDE_AGGREGATES,
                 default=defaults.get(
@@ -39,12 +71,6 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_COUNT_DOWNTIME,
                 default=defaults.get(CONF_COUNT_DOWNTIME, DEFAULT_COUNT_DOWNTIME),
             ): selector.BooleanSelector(),
-            vol.Optional(
-                CONF_EXCLUDED_ENTITIES,
-                default=defaults.get(CONF_EXCLUDED_ENTITIES, []),
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="light", multiple=True)
-            ),
         }
     )
 

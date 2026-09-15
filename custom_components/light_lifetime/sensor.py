@@ -24,6 +24,7 @@ from .const import (
     ATTR_FIRST_SEEN_SOURCE,
     ATTR_TRACKED_SINCE,
     DOMAIN,
+    SENSOR_KEYS,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
     SIGNAL_UPDATED,
@@ -57,14 +58,57 @@ async def async_setup_entry(
             ]
         )
 
+    # The ledger keeps history for lights that are no longer tracked (so their
+    # counters survive being re-included later), but only currently-tracked
+    # lights get entities.
     for entity_id in tracker.tracked_entities():
-        _add(entity_id)
+        if tracker.should_track(entity_id):
+            _add(entity_id)
+
+    _async_remove_orphans(hass, entry, tracker)
 
     # Lights paired later are picked up the moment the tracker notices them --
     # no reconfiguration, no restart.
     entry.async_on_unload(
         async_dispatcher_connect(hass, SIGNAL_NEW_ENTITY, _add)
     )
+
+
+def _source_registry_id(unique_id: str) -> str | None:
+    """Strip the sensor key suffix from a unique_id to get the source light."""
+    for key in SENSOR_KEYS:
+        suffix = f"_{key}"
+        if unique_id.endswith(suffix):
+            return unique_id[: -len(suffix)]
+    return None
+
+
+@callback
+def _async_remove_orphans(
+    hass: HomeAssistant, entry: ConfigEntry, tracker: LightLifetimeTracker
+) -> None:
+    """Drop entities whose source light is no longer tracked.
+
+    Without this, narrowing the selection in the options flow would leave
+    stale sensors behind that never update again.
+    """
+    registry = er.async_get(hass)
+    # unique_id is "<source registry id>_<key>", so map registry ids back to
+    # entity_ids once rather than scanning per sensor.
+    by_registry_id = {e.id: e.entity_id for e in registry.entities.values()}
+
+    for sensor in er.async_entries_for_config_entry(registry, entry.entry_id):
+        source_id = _source_registry_id(sensor.unique_id)
+        source_entity_id = by_registry_id.get(source_id) if source_id else None
+        if source_entity_id is None:
+            continue
+        if not tracker.should_track(source_entity_id):
+            registry.async_remove(sensor.entity_id)
+            _LOGGER.debug(
+                "Removed %s; %s is no longer tracked",
+                sensor.entity_id,
+                source_entity_id,
+            )
 
 
 class LightLifetimeSensorBase(SensorEntity):

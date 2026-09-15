@@ -49,11 +49,23 @@ directory and restart.
 
 ## Options
 
+**Two ways to choose what gets tracked**, set at install and changeable later via Configure:
+
+| Mode | Behaviour |
+| --- | --- |
+| **Track all lights** (default) | Every light is tracked except the ones you exclude. New lights are picked up automatically. |
+| **Track only selected lights** | Only the lights you pick are tracked. New lights are *not* added automatically — that is the trade-off of opting in. |
+
 | Option | Default | Meaning |
 | --- | --- | --- |
+| Which lights to track | Track all | Opt-out or opt-in, as above. |
+| Lights to track | none | Opt-in mode only: the explicit allow-list. |
+| Lights to ignore | none | Track-all mode only: the exclusions. |
 | Exclude groups and rooms | on | Skip light entities that aggregate other lights (Hue Rooms and Zones, HA light groups). Leaving these in double-counts every member bulb. |
 | Count downtime as on-time | off | When Home Assistant is offline, assume lights that were on stayed on. Off means only observed time counts. |
-| Lights to ignore | none | Explicit exclusions. |
+
+Narrowing the selection removes the now-unused sensors, but their counters are **kept** in the
+ledger — re-include a light later and its history is still there.
 
 ## Using the values in automations
 
@@ -190,6 +202,13 @@ being stamped with today's date and presented as fact. Only genuinely known date
 > history for bulbs that predate it — the recorder only keeps `purge_keep_days` of state, and
 > lights produce no long-term statistics until this integration creates them. Use
 > `light_lifetime.set_values` if you have a credible estimate to seed.
+
+**Storage is a single JSON document** at `.storage/light_lifetime.data`, written through
+Home Assistant's own `Store` helper — the same mechanism behind the entity and device
+registries. That means atomic writes, debounced to at most once every 60 seconds plus a flush
+on shutdown, and inclusion in native Home Assistant backups (`.storage` is not on the backup
+component's exclusion list). The recorder's long-term statistics act as an independent second
+copy of the numbers, so the values are recoverable even if the ledger is lost.
 
 **Renames are followed.** If you change a light's `entity_id`, its counters move with it.
 

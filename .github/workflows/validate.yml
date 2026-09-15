@@ -19,13 +19,8 @@ jobs:
   hacs:
     name: HACS
     runs-on: ubuntu-latest
-    # HACS reads hacs.json and manifest.json through the GitHub contents API,
-    # which returns nothing for a private repository, so those two checks fail
-    # with "Got None" regardless of the files being valid. Every metadata check
-    # still runs and must be read. Remove continue-on-error once this repo is
-    # public, and drop the brands ignore once it is listed in
-    # home-assistant/brands.
-    continue-on-error: true
+    # `brands` needs the integration listed in home-assistant/brands, which
+    # is a separate PR. Drop this ignore once that merges.
     steps:
       - uses: actions/checkout@v5
       - uses: hacs/action@main

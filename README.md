@@ -5,6 +5,8 @@ Track **lifetime on-hours**, **dropout counts** and **age** for every light in H
 Lights are discovered automatically — including ones you pair later. There is no per-bulb
 configuration, no YAML to regenerate, and no dependency on the recorder.
 
+Requires Home Assistant **2026.9.0** or newer.
+
 ## Why this exists
 
 Home Assistant has no built-in way to answer "how many hours has this bulb actually been on?"

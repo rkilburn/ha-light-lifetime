@@ -24,6 +24,10 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # `brands` requires the integration to be listed in the
+          # home-assistant/brands repository, which can only be done via a PR
+          # once this repo is public. Drop this ignore at that point.
+          ignore: brands
 
   tests:
     name: Tests

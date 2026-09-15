@@ -52,3 +52,4 @@ SIGNAL_REFRESH: Final = f"{DOMAIN}_refresh"
 
 SERVICE_RESET: Final = "reset"
 SERVICE_SET_VALUES: Final = "set_values"
+SERVICE_BACKFILL: Final = "backfill"

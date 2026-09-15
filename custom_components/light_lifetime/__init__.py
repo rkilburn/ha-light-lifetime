@@ -7,11 +7,16 @@ import logging
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, SERVICE_RESET, SERVICE_SET_VALUES
+from .const import DOMAIN, SERVICE_BACKFILL, SERVICE_RESET, SERVICE_SET_VALUES
 from .tracker import LightLifetimeTracker
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,6 +28,14 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _ENTITY_SELECTOR = vol.All(cv.ensure_list, [cv.entity_id])
 
 RESET_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): _ENTITY_SELECTOR})
+
+BACKFILL_SCHEMA = vol.Schema(
+    {
+        vol.Optional(ATTR_ENTITY_ID): _ENTITY_SELECTOR,
+        vol.Optional("days", default=30): vol.All(vol.Coerce(int), vol.Range(min=1, max=3650)),
+        vol.Optional("overwrite", default=False): cv.boolean,
+    }
+)
 
 SET_VALUES_SCHEMA = vol.Schema(
     {
@@ -55,8 +68,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     first_seen=call.data.get("first_seen"),
                 )
 
+    async def _handle_backfill(call: ServiceCall) -> ServiceResponse:
+        entity_ids = call.data.get(ATTR_ENTITY_ID)
+        totals: dict[str, float] = {}
+        updated = skipped = 0
+        for tracker in _trackers():
+            result = await tracker.async_backfill(
+                entity_ids=entity_ids,
+                days=call.data["days"],
+                overwrite=call.data["overwrite"],
+            )
+            updated += result["updated"]
+            skipped += result["skipped"]
+            totals.update(result["entities"])
+        return {
+            "updated": updated,
+            "skipped": skipped,
+            "total_hours": round(sum(totals.values()), 2),
+            "entities": totals,
+        }
+
     hass.services.async_register(
         DOMAIN, SERVICE_RESET, _handle_reset, schema=RESET_SCHEMA
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BACKFILL,
+        _handle_backfill,
+        schema=BACKFILL_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_VALUES, _handle_set_values, schema=SET_VALUES_SCHEMA

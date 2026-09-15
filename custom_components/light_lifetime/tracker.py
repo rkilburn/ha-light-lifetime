@@ -397,6 +397,119 @@ class LightLifetimeTracker:
         record = self._data.get(entity_id)
         return bool(record and record.get(ATTR_ON_SINCE))
 
+
+    # ------------------------------------------------------------------
+    # Backfill from the recorder
+    # ------------------------------------------------------------------
+    async def async_backfill(
+        self,
+        entity_ids: list[str] | None = None,
+        days: int = 30,
+        overwrite: bool = False,
+    ) -> dict[str, Any]:
+        """Seed counters from recorder history.
+
+        Recovers only what the recorder still holds -- `purge_keep_days`, 10 by
+        default -- so this is a partial seed, never a lifetime total. Entities
+        that already carry accumulated time are skipped unless `overwrite` is
+        set, so running it twice does not double-count.
+        """
+        # Imported lazily: the recorder is an optional dependency and may be
+        # absent on instances that have disabled it.
+        from homeassistant.components.recorder import get_instance, history
+
+        targets = entity_ids or list(self._data)
+        targets = [e for e in targets if e in self._data]
+        if not targets:
+            return {"updated": 0, "skipped": 0, "entities": {}}
+
+        end = dt_util.utcnow()
+        start = end - timedelta(days=days)
+
+        # state_changes_during_period requires a single entity_id, so fetch per
+        # entity inside one recorder executor job rather than one job each.
+        def _fetch_all() -> dict[str, list[Any]]:
+            out: dict[str, list[Any]] = {}
+            for entity_id in targets:
+                result = history.state_changes_during_period(
+                    self.hass,
+                    start,
+                    end,
+                    entity_id=entity_id,
+                    no_attributes=True,
+                    include_start_time_state=True,
+                )
+                out[entity_id] = result.get(entity_id, [])
+            return out
+
+        recorded = await get_instance(self.hass).async_add_executor_job(_fetch_all)
+
+        updated = 0
+        skipped = 0
+        summary: dict[str, Any] = {}
+        for entity_id, states in recorded.items():
+            record = self._data[entity_id]
+            if float(record.get(ATTR_ON_SECONDS, 0.0)) > 0 and not overwrite:
+                skipped += 1
+                continue
+
+            seconds, dropouts, first_ts = self._replay(states, end)
+            if seconds <= 0 and dropouts == 0:
+                skipped += 1
+                continue
+
+            record[ATTR_ON_SECONDS] = seconds
+            record[ATTR_DROPOUTS] = dropouts
+            record["backfilled_at"] = end.isoformat()
+            record["backfilled_seconds"] = seconds
+            # An open interval is re-anchored to now so live accrual continues
+            # from the backfilled total without re-counting the tail.
+            if record.get(ATTR_ON_SINCE):
+                record[ATTR_ON_SINCE] = end.isoformat()
+            if record.get(ATTR_FIRST_SEEN) is None and first_ts is not None:
+                # The oldest retained state proves the light existed by then;
+                # it is a floor, so first_seen_source stays "unknown".
+                record[ATTR_TRACKED_SINCE] = first_ts.isoformat()
+            updated += 1
+            summary[entity_id] = round(seconds / 3600.0, 2)
+            async_dispatcher_send(self.hass, SIGNAL_UPDATED, entity_id)
+
+        await self._async_flush()
+        _LOGGER.info(
+            "Backfilled %s light(s) from recorder history, skipped %s", updated, skipped
+        )
+        return {"updated": updated, "skipped": skipped, "entities": summary}
+
+    @staticmethod
+    def _replay(states: list[Any], end: datetime) -> tuple[float, int, datetime | None]:
+        """Replay recorded states into on-seconds and a dropout count."""
+        total = 0.0
+        dropouts = 0
+        on_since: datetime | None = None
+        previous: str | None = None
+        first_ts: datetime | None = None
+
+        for state in states:
+            when = state.last_updated
+            if first_ts is None:
+                first_ts = when
+            value = state.state
+            if value == STATE_ON and on_since is None:
+                on_since = when
+            elif value != STATE_ON and on_since is not None:
+                total += max(0.0, (when - on_since).total_seconds())
+                on_since = None
+            if value == STATE_UNAVAILABLE and previous not in (
+                None,
+                STATE_UNAVAILABLE,
+            ):
+                dropouts += 1
+            previous = value
+
+        if on_since is not None:
+            total += max(0.0, (end - on_since).total_seconds())
+        return total, dropouts, first_ts
+
     # ------------------------------------------------------------------
     # Mutations (services)
     # ------------------------------------------------------------------

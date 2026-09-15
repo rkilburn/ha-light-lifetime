@@ -39,10 +39,18 @@
   },
   "entity": {
     "sensor": {
-      "on_hours": { "name": "On hours" },
-      "dropouts": { "name": "Dropouts" },
-      "first_seen": { "name": "First seen" },
-      "age": { "name": "Age" }
+      "on_hours": {
+        "name": "On hours"
+      },
+      "dropouts": {
+        "name": "Dropouts"
+      },
+      "first_seen": {
+        "name": "First seen"
+      },
+      "age": {
+        "name": "Age"
+      }
     }
   },
   "services": {
@@ -50,17 +58,50 @@
       "name": "Reset counters",
       "description": "Zero the lifetime counters for a light and set its first-seen date to now.",
       "fields": {
-        "entity_id": { "name": "Light", "description": "The light entity whose counters should be reset." }
+        "entity_id": {
+          "name": "Light",
+          "description": "The light entity whose counters should be reset."
+        }
       }
     },
     "set_values": {
       "name": "Set counters",
       "description": "Seed or correct the lifetime counters for a light.",
       "fields": {
-        "entity_id": { "name": "Light", "description": "The light entity to update." },
-        "on_hours": { "name": "On hours", "description": "Lifetime hours the light has been switched on." },
-        "dropouts": { "name": "Dropouts", "description": "Number of times the light has gone unavailable." },
-        "first_seen": { "name": "First seen", "description": "When the light was first connected." }
+        "entity_id": {
+          "name": "Light",
+          "description": "The light entity to update."
+        },
+        "on_hours": {
+          "name": "On hours",
+          "description": "Lifetime hours the light has been switched on."
+        },
+        "dropouts": {
+          "name": "Dropouts",
+          "description": "Number of times the light has gone unavailable."
+        },
+        "first_seen": {
+          "name": "First seen",
+          "description": "When the light was first connected."
+        }
+      }
+    },
+    "backfill": {
+      "name": "Backfill from recorder",
+      "description": "Seed counters from recorder history. Partial: limited to purge_keep_days.",
+      "fields": {
+        "entity_id": {
+          "name": "Lights",
+          "description": "Lights to backfill. Leave empty for all."
+        },
+        "days": {
+          "name": "Days",
+          "description": "How far back to look."
+        },
+        "overwrite": {
+          "name": "Overwrite",
+          "description": "Replace existing counters."
+        }
       }
     }
   }

@@ -115,6 +115,25 @@ data:
   first_seen: "2023-06-01 12:00:00"
 ```
 
+### `light_lifetime.backfill`
+
+Seed counters from Home Assistant's own recorder history.
+
+```yaml
+action: light_lifetime.backfill
+data:
+  days: 30          # optional; the recorder returns only what it retained
+  overwrite: false  # optional; skip lights that already have time
+```
+
+Returns a response with `updated`, `skipped`, `total_hours` and a per-entity breakdown.
+
+**This recovers only what the recorder still holds** — `purge_keep_days`, which defaults to
+10. It is a partial seed, not a lifetime total, and there is no way around that: state history
+older than the purge window is gone, and lights generate no long-term statistics until this
+integration creates them. Lights that already have accumulated time are skipped, so running it
+twice will not double-count.
+
 ## Dashboard
 
 No custom cards required. This sorts every tracked bulb by on-hours:

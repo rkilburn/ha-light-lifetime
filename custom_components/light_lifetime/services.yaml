@@ -54,3 +54,39 @@ set_values:
       required: false
       selector:
         datetime:
+
+backfill:
+  name: Backfill from recorder
+  description: >-
+    Seed counters from Home Assistant's recorder history. This recovers only
+    what the recorder still holds (purge_keep_days, 10 by default), so it is a
+    partial seed rather than a lifetime total. Lights that already have
+    accumulated time are skipped unless Overwrite is set.
+  fields:
+    entity_id:
+      name: Lights
+      description: Lights to backfill. Leave empty for every tracked light.
+      required: false
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    days:
+      name: Days
+      description: How far back to look. The recorder returns only what it has retained.
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 3650
+          step: 1
+          unit_of_measurement: days
+          mode: box
+    overwrite:
+      name: Overwrite
+      description: Replace existing counters instead of skipping lights that already have time.
+      required: false
+      default: false
+      selector:
+        boolean:

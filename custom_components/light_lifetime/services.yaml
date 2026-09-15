@@ -1,0 +1,56 @@
+reset:
+  name: Reset counters
+  description: >-
+    Zero the lifetime counters for a light and set its first-seen date to now.
+    Use this after physically replacing a bulb in an existing fixture.
+  fields:
+    entity_id:
+      name: Light
+      description: The light entity whose counters should be reset.
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+
+set_values:
+  name: Set counters
+  description: >-
+    Seed or correct the lifetime counters for a light, for example from a known
+    install date or an estimate carried over from another system.
+  fields:
+    entity_id:
+      name: Light
+      description: The light entity to update.
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    on_hours:
+      name: On hours
+      description: Lifetime hours the light has been switched on.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1000000
+          step: 0.1
+          unit_of_measurement: h
+          mode: box
+    dropouts:
+      name: Dropouts
+      description: Number of times the light has gone unavailable.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1000000
+          step: 1
+          mode: box
+    first_seen:
+      name: First seen
+      description: When the light was first connected.
+      required: false
+      selector:
+        datetime:

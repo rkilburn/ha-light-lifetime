@@ -1,0 +1,12 @@
+{
+  "domain": "light_lifetime",
+  "name": "Light Lifetime",
+  "codeowners": ["@rkilburn"],
+  "config_flow": true,
+  "documentation": "https://github.com/rkilburn/ha-light-lifetime",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/rkilburn/ha-light-lifetime/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

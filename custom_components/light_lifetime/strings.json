@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Light Lifetime",
+        "description": "Track lifetime on-hours, dropouts and age for every light. Lights are discovered automatically, including ones you add later.",
+        "data": {
+          "exclude_aggregates": "Exclude groups and rooms",
+          "count_downtime": "Count Home Assistant downtime as on-time",
+          "excluded_entities": "Lights to ignore"
+        },
+        "data_description": {
+          "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "excluded_entities": "These lights will not be tracked."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Light Lifetime is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Light Lifetime options",
+        "data": {
+          "exclude_aggregates": "Exclude groups and rooms",
+          "count_downtime": "Count Home Assistant downtime as on-time",
+          "excluded_entities": "Lights to ignore"
+        },
+        "data_description": {
+          "exclude_aggregates": "Skip light entities that represent a group of other lights, such as Hue rooms and zones, which would otherwise double-count their members.",
+          "count_downtime": "When Home Assistant is offline, assume lights that were on stayed on. Leave this off to count only time Home Assistant actually observed.",
+          "excluded_entities": "These lights will not be tracked."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "on_hours": { "name": "On hours" },
+      "dropouts": { "name": "Dropouts" },
+      "first_seen": { "name": "First seen" },
+      "age": { "name": "Age" }
+    }
+  },
+  "services": {
+    "reset": {
+      "name": "Reset counters",
+      "description": "Zero the lifetime counters for a light and set its first-seen date to now.",
+      "fields": {
+        "entity_id": { "name": "Light", "description": "The light entity whose counters should be reset." }
+      }
+    },
+    "set_values": {
+      "name": "Set counters",
+      "description": "Seed or correct the lifetime counters for a light.",
+      "fields": {
+        "entity_id": { "name": "Light", "description": "The light entity to update." },
+        "on_hours": { "name": "On hours", "description": "Lifetime hours the light has been switched on." },
+        "dropouts": { "name": "Dropouts", "description": "Number of times the light has gone unavailable." },
+        "first_seen": { "name": "First seen", "description": "When the light was first connected." }
+      }
+    }
+  }
+}

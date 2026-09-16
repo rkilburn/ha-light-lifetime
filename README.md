@@ -228,6 +228,11 @@ entries that predate the field using the Unix epoch (`1970-01-01`). Bulbs carryi
 sentinel report `unknown` with `is_floor: true` and a `tracked_since` attribute, rather than
 being stamped with today's date and presented as fact. Only genuinely known dates are reported.
 
+The `first_seen_source` attribute says where the date came from: `registry` when Home
+Assistant recorded it, `manual` when you stated it — a `reset` after a bulb swap, or a
+`first_seen` passed to `set_values` — and `unknown` for the sentinel case above, which is the
+only one that sets `is_floor`.
+
 > **Note:** on-hours accumulate from installation forward. There is no way to reconstruct
 > history for bulbs that predate it — the recorder only keeps `purge_keep_days` of state, and
 > lights produce no long-term statistics until this integration creates them. Use

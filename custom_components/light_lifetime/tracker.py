@@ -54,6 +54,7 @@ from .const import (
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
     SIGNAL_UPDATED,
+    SOURCE_MANUAL,
     SOURCE_REGISTRY,
     SOURCE_UNKNOWN,
     STORAGE_KEY,
@@ -639,7 +640,7 @@ class LightLifetimeTracker:
             ATTR_TURN_ON_COUNT: 0,
             ATTR_TURN_OFF_COUNT: 0,
             ATTR_FIRST_SEEN: now.isoformat(),
-            ATTR_FIRST_SEEN_SOURCE: SOURCE_REGISTRY,
+            ATTR_FIRST_SEEN_SOURCE: SOURCE_MANUAL,
             ATTR_TRACKED_SINCE: now.isoformat(),
             ATTR_ON_SINCE: now.isoformat()
             if state is not None and state.state == STATE_ON
@@ -673,6 +674,6 @@ class LightLifetimeTracker:
             record[ATTR_TURN_OFF_COUNT] = int(turn_off_count)
         if first_seen is not None:
             record[ATTR_FIRST_SEEN] = dt_util.as_utc(first_seen).isoformat()
-            record[ATTR_FIRST_SEEN_SOURCE] = SOURCE_REGISTRY
+            record[ATTR_FIRST_SEEN_SOURCE] = SOURCE_MANUAL
         self._schedule_save()
         async_dispatcher_send(self.hass, SIGNAL_UPDATED, entity_id)

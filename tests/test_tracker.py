@@ -16,6 +16,7 @@ from custom_components.light_lifetime.const import (
     ATTR_ON_SINCE,
     CONF_COUNT_DOWNTIME,
     DOMAIN,
+    SOURCE_MANUAL,
     SOURCE_REGISTRY,
     SOURCE_UNKNOWN,
 )
@@ -317,3 +318,42 @@ async def test_startup_state_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
 
     tracker._apply_transition(record, None, "on", datetime.now(timezone.utc))
     assert tracker.turn_on_count("light.kitchen") == 0
+
+
+async def test_reset_records_a_manual_first_seen(hass: HomeAssistant) -> None:
+    """A reset date is real, but it did not come from the registry."""
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker.reset("light.kitchen")
+
+    assert tracker.first_seen_source("light.kitchen") == SOURCE_MANUAL
+    assert tracker.first_seen("light.kitchen") is not None
+
+
+async def test_set_values_records_a_manual_first_seen(hass: HomeAssistant) -> None:
+    """Same for a date the user states outright."""
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    stated = datetime(2023, 6, 1, 12, 0, tzinfo=timezone.utc)
+    tracker.set_values("light.kitchen", first_seen=stated)
+
+    assert tracker.first_seen_source("light.kitchen") == SOURCE_MANUAL
+    assert tracker.first_seen("light.kitchen") == stated
+
+
+async def test_only_the_registry_reports_a_registry_source(hass: HomeAssistant) -> None:
+    """SOURCE_REGISTRY now means exactly what it says."""
+    ent_reg = er.async_get(hass)
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-dated", suggested_object_id="dated"
+    ).entity_id
+    hass.states.async_set(source, "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker._ensure(source)
+    assert tracker.first_seen_source(source) == SOURCE_REGISTRY

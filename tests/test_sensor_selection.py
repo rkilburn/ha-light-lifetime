@@ -71,12 +71,12 @@ async def test_only_chosen_sensors_are_created(hass: HomeAssistant) -> None:
         hass,
         {
             CONF_MODE: MODE_ALL,
-            CONF_SENSORS: ["on_hours", "turn_ons"],
+            CONF_SENSORS: ["on_hours", "turn_on_count"],
             CONF_SUMMARY_SENSORS: False,
         },
     )
 
-    assert _keys_in_use(hass) == {"on_hours", "turn_ons"}
+    assert _keys_in_use(hass) == {"on_hours", "turn_on_count"}
 
 
 async def test_empty_selection_creates_no_per_light_sensors(
@@ -145,19 +145,19 @@ async def test_reselecting_a_sensor_restores_its_value(hass: HomeAssistant) -> N
     await hass.async_block_till_done()
     hass.states.async_set(bulb, "off")
     await hass.async_block_till_done()
-    assert tracker.turn_ons(bulb) == 1
+    assert tracker.turn_on_count(bulb) == 1
 
     hass.config_entries.async_update_entry(
-        entry, options={CONF_MODE: MODE_ALL, CONF_SENSORS: ["on_hours", "turn_ons"]}
+        entry, options={CONF_MODE: MODE_ALL, CONF_SENSORS: ["on_hours", "turn_on_count"]}
     )
     await hass.async_block_till_done()
 
-    turn_ons = next(
+    turn_on_count = next(
         s
         for s in hass.states.async_all("sensor")
-        if s.entity_id.endswith("_turn_ons")
+        if s.entity_id.endswith("_turn_on_count")
     )
-    assert int(turn_ons.state) == 1
+    assert int(turn_on_count.state) == 1
 
 
 async def test_disabling_summary_sensors_removes_the_old_ones(
@@ -199,9 +199,9 @@ async def test_turn_count_sensors_report_the_ledger(hass: HomeAssistant) -> None
             for s in hass.states.async_all("sensor")
             if s.entity_id.endswith(suffix)
         )
-        for suffix in ("_turn_ons", "_turn_offs")
+        for suffix in ("_turn_on_count", "_turn_off_count")
     }
-    assert int(by_suffix["_turn_ons"].state) == 1
-    assert int(by_suffix["_turn_offs"].state) == 1
-    assert by_suffix["_turn_ons"].attributes["state_class"] == "total_increasing"
-    assert by_suffix["_turn_ons"].attributes["source_entity_id"] == bulb
+    assert int(by_suffix["_turn_on_count"].state) == 1
+    assert int(by_suffix["_turn_off_count"].state) == 1
+    assert by_suffix["_turn_on_count"].attributes["state_class"] == "total_increasing"
+    assert by_suffix["_turn_on_count"].attributes["source_entity_id"] == bulb

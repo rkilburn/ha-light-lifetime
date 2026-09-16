@@ -48,8 +48,8 @@ set_values:
           max: 1000000
           step: 1
           mode: box
-    turn_ons:
-      name: Turn-ons
+    turn_on_count:
+      name: Turn-on count
       description: Number of times the light has been switched on.
       required: false
       selector:
@@ -58,8 +58,8 @@ set_values:
           max: 100000000
           step: 1
           mode: box
-    turn_offs:
-      name: Turn-offs
+    turn_off_count:
+      name: Turn-off count
       description: Number of times the light has been switched off.
       required: false
       selector:

@@ -36,8 +36,8 @@ from .const import (
     ATTR_ON_SECONDS,
     ATTR_ON_SINCE,
     ATTR_TRACKED_SINCE,
-    ATTR_TURN_OFFS,
-    ATTR_TURN_ONS,
+    ATTR_TURN_OFF_COUNT,
+    ATTR_TURN_ON_COUNT,
     CONF_COUNT_DOWNTIME,
     CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
@@ -70,8 +70,8 @@ class ReplayResult(NamedTuple):
 
     on_seconds: float
     dropouts: int
-    turn_ons: int
-    turn_offs: int
+    turn_on_count: int
+    turn_off_count: int
     first_ts: datetime | None
 
 
@@ -258,9 +258,9 @@ class LightLifetimeTracker:
         # coming back lit is a recovery, not somebody turning it on -- counting
         # either would turn a flaky radio into thousands of phantom cycles.
         if old_value == STATE_OFF and is_on:
-            record[ATTR_TURN_ONS] = int(record.get(ATTR_TURN_ONS, 0)) + 1
+            record[ATTR_TURN_ON_COUNT] = int(record.get(ATTR_TURN_ON_COUNT, 0)) + 1
         elif was_on and new_value == STATE_OFF:
-            record[ATTR_TURN_OFFS] = int(record.get(ATTR_TURN_OFFS, 0)) + 1
+            record[ATTR_TURN_OFF_COUNT] = int(record.get(ATTR_TURN_OFF_COUNT, 0)) + 1
 
         # `old_value is None` means the entity was just added to the state
         # machine, which happens on every restart -- not a real dropout.
@@ -388,8 +388,8 @@ class LightLifetimeTracker:
             record = {
                 ATTR_ON_SECONDS: 0.0,
                 ATTR_DROPOUTS: 0,
-                ATTR_TURN_ONS: 0,
-                ATTR_TURN_OFFS: 0,
+                ATTR_TURN_ON_COUNT: 0,
+                ATTR_TURN_OFF_COUNT: 0,
                 ATTR_FIRST_SEEN: first_seen,
                 ATTR_FIRST_SEEN_SOURCE: source,
                 ATTR_TRACKED_SINCE: dt_util.utcnow().isoformat(),
@@ -441,14 +441,14 @@ class LightLifetimeTracker:
         return int(record.get(ATTR_DROPOUTS, 0)) if record else 0
 
     @callback
-    def turn_ons(self, entity_id: str) -> int:
+    def turn_on_count(self, entity_id: str) -> int:
         record = self._data.get(entity_id)
-        return int(record.get(ATTR_TURN_ONS, 0)) if record else 0
+        return int(record.get(ATTR_TURN_ON_COUNT, 0)) if record else 0
 
     @callback
-    def turn_offs(self, entity_id: str) -> int:
+    def turn_off_count(self, entity_id: str) -> int:
         record = self._data.get(entity_id)
-        return int(record.get(ATTR_TURN_OFFS, 0)) if record else 0
+        return int(record.get(ATTR_TURN_OFF_COUNT, 0)) if record else 0
 
     @callback
     def first_seen(self, entity_id: str) -> datetime | None:
@@ -556,16 +556,16 @@ class LightLifetimeTracker:
             if (
                 replayed.on_seconds <= 0
                 and replayed.dropouts == 0
-                and replayed.turn_ons == 0
-                and replayed.turn_offs == 0
+                and replayed.turn_on_count == 0
+                and replayed.turn_off_count == 0
             ):
                 skipped += 1
                 continue
 
             record[ATTR_ON_SECONDS] = replayed.on_seconds
             record[ATTR_DROPOUTS] = replayed.dropouts
-            record[ATTR_TURN_ONS] = replayed.turn_ons
-            record[ATTR_TURN_OFFS] = replayed.turn_offs
+            record[ATTR_TURN_ON_COUNT] = replayed.turn_on_count
+            record[ATTR_TURN_OFF_COUNT] = replayed.turn_off_count
             record["backfilled_at"] = end.isoformat()
             record["backfilled_seconds"] = replayed.on_seconds
             # An open interval is re-anchored to now so live accrual continues
@@ -591,8 +591,8 @@ class LightLifetimeTracker:
         """Replay recorded states into on-seconds, dropouts and switch cycles."""
         total = 0.0
         dropouts = 0
-        turn_ons = 0
-        turn_offs = 0
+        turn_on_count = 0
+        turn_off_count = 0
         on_since: datetime | None = None
         previous: str | None = None
         first_ts: datetime | None = None
@@ -616,14 +616,14 @@ class LightLifetimeTracker:
             # are switch cycles. The first recorded state has no predecessor,
             # so it starts no cycle.
             if previous == STATE_OFF and value == STATE_ON:
-                turn_ons += 1
+                turn_on_count += 1
             elif previous == STATE_ON and value == STATE_OFF:
-                turn_offs += 1
+                turn_off_count += 1
             previous = value
 
         if on_since is not None:
             total += max(0.0, (end - on_since).total_seconds())
-        return ReplayResult(total, dropouts, turn_ons, turn_offs, first_ts)
+        return ReplayResult(total, dropouts, turn_on_count, turn_off_count, first_ts)
 
     # ------------------------------------------------------------------
     # Mutations (services)
@@ -636,8 +636,8 @@ class LightLifetimeTracker:
         self._data[entity_id] = {
             ATTR_ON_SECONDS: 0.0,
             ATTR_DROPOUTS: 0,
-            ATTR_TURN_ONS: 0,
-            ATTR_TURN_OFFS: 0,
+            ATTR_TURN_ON_COUNT: 0,
+            ATTR_TURN_OFF_COUNT: 0,
             ATTR_FIRST_SEEN: now.isoformat(),
             ATTR_FIRST_SEEN_SOURCE: SOURCE_REGISTRY,
             ATTR_TRACKED_SINCE: now.isoformat(),
@@ -654,8 +654,8 @@ class LightLifetimeTracker:
         entity_id: str,
         on_hours: float | None = None,
         dropouts: int | None = None,
-        turn_ons: int | None = None,
-        turn_offs: int | None = None,
+        turn_on_count: int | None = None,
+        turn_off_count: int | None = None,
         first_seen: datetime | None = None,
     ) -> None:
         """Seed counters, e.g. from a known install date or a prior estimate."""
@@ -667,10 +667,10 @@ class LightLifetimeTracker:
                 record[ATTR_ON_SINCE] = dt_util.utcnow().isoformat()
         if dropouts is not None:
             record[ATTR_DROPOUTS] = int(dropouts)
-        if turn_ons is not None:
-            record[ATTR_TURN_ONS] = int(turn_ons)
-        if turn_offs is not None:
-            record[ATTR_TURN_OFFS] = int(turn_offs)
+        if turn_on_count is not None:
+            record[ATTR_TURN_ON_COUNT] = int(turn_on_count)
+        if turn_off_count is not None:
+            record[ATTR_TURN_OFF_COUNT] = int(turn_off_count)
         if first_seen is not None:
             record[ATTR_FIRST_SEEN] = dt_util.as_utc(first_seen).isoformat()
             record[ATTR_FIRST_SEEN_SOURCE] = SOURCE_REGISTRY

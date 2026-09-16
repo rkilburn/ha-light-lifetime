@@ -56,8 +56,8 @@ EPOCH_SENTINEL_YEAR: Final = 1971
 # Record keys
 ATTR_ON_SECONDS: Final = "on_seconds"
 ATTR_DROPOUTS: Final = "dropouts"
-ATTR_TURN_ONS: Final = "turn_ons"
-ATTR_TURN_OFFS: Final = "turn_offs"
+ATTR_TURN_ON_COUNT: Final = "turn_on_count"
+ATTR_TURN_OFF_COUNT: Final = "turn_off_count"
 ATTR_FIRST_SEEN: Final = "first_seen"
 ATTR_FIRST_SEEN_SOURCE: Final = "first_seen_source"
 ATTR_TRACKED_SINCE: Final = "tracked_since"
@@ -72,8 +72,8 @@ SOURCE_UNKNOWN: Final = "unknown"
 SENSOR_KEYS: Final = (
     "on_hours",
     "dropouts",
-    "turn_ons",
-    "turn_offs",
+    "turn_on_count",
+    "turn_off_count",
     "first_seen",
     "age",
 )

@@ -103,14 +103,14 @@ async def test_selected_mode_branch_skips_all_mode_fields(
         result["flow_id"],
         {
             CONF_INCLUDED_ENTITIES: [bulb],
-            CONF_SENSORS: ["on_hours", "turn_ons"],
+            CONF_SENSORS: ["on_hours", "turn_on_count"],
             CONF_COUNT_DOWNTIME: False,
         },
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["options"][CONF_MODE] == MODE_SELECTED
     assert result["options"][CONF_INCLUDED_ENTITIES] == [bulb]
-    assert result["options"][CONF_SENSORS] == ["on_hours", "turn_ons"]
+    assert result["options"][CONF_SENSORS] == ["on_hours", "turn_on_count"]
 
 
 async def test_all_mode_step_offers_brand_section(hass: HomeAssistant) -> None:
@@ -209,7 +209,7 @@ async def test_sensor_picker_prefills_from_current_options(
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={},
-        options={CONF_MODE: MODE_ALL, CONF_SENSORS: ["on_hours", "turn_offs"]},
+        options={CONF_MODE: MODE_ALL, CONF_SENSORS: ["on_hours", "turn_off_count"]},
         unique_id=DOMAIN,
     )
     entry.add_to_hass(hass)
@@ -224,4 +224,4 @@ async def test_sensor_picker_prefills_from_current_options(
     field = next(
         k for k in result["data_schema"].schema if str(k) == CONF_SENSORS
     )
-    assert field.default() == ["on_hours", "turn_offs"]
+    assert field.default() == ["on_hours", "turn_off_count"]

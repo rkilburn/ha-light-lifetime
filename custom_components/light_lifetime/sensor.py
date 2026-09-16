@@ -245,30 +245,30 @@ class LightDropoutsSensor(LightLifetimeSensorBase):
         return self._tracker.dropouts(self._source_entity_id)
 
 
-class LightTurnOnsSensor(LightLifetimeSensorBase):
+class LightTurnOnCountSensor(LightLifetimeSensorBase):
     """How many times the light has been switched on."""
 
-    _key = "turn_ons"
+    _key = "turn_on_count"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "turn-ons"
     _attr_icon = "mdi:toggle-switch-variant"
 
     @property
     def native_value(self) -> int:
-        return self._tracker.turn_ons(self._source_entity_id)
+        return self._tracker.turn_on_count(self._source_entity_id)
 
 
-class LightTurnOffsSensor(LightLifetimeSensorBase):
+class LightTurnOffCountSensor(LightLifetimeSensorBase):
     """How many times the light has been switched off."""
 
-    _key = "turn_offs"
+    _key = "turn_off_count"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
     _attr_native_unit_of_measurement = "turn-offs"
     _attr_icon = "mdi:toggle-switch-variant-off"
 
     @property
     def native_value(self) -> int:
-        return self._tracker.turn_offs(self._source_entity_id)
+        return self._tracker.turn_off_count(self._source_entity_id)
 
 
 class LightFirstSeenSensor(LightLifetimeSensorBase):
@@ -326,8 +326,8 @@ class LightAgeSensor(LightLifetimeSensorBase):
 SENSOR_TYPES: dict[str, type[LightLifetimeSensorBase]] = {
     "on_hours": LightOnHoursSensor,
     "dropouts": LightDropoutsSensor,
-    "turn_ons": LightTurnOnsSensor,
-    "turn_offs": LightTurnOffsSensor,
+    "turn_on_count": LightTurnOnCountSensor,
+    "turn_off_count": LightTurnOffCountSensor,
     "first_seen": LightFirstSeenSensor,
     "age": LightAgeSensor,
 }

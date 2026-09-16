@@ -29,8 +29,8 @@ Six sensors per light, attached to the bulb's own device:
 | --- | --- | --- | --- |
 | `sensor.<light>_on_hours` | `duration` (h) | `total_increasing` | Lifetime hours switched on |
 | `sensor.<light>_dropouts` | — | `total_increasing` | Times the light went `unavailable` |
-| `sensor.<light>_turn_ons` | — | `total_increasing` | Times the light was switched on |
-| `sensor.<light>_turn_offs` | — | `total_increasing` | Times the light was switched off |
+| `sensor.<light>_turn_on_count` | — | `total_increasing` | Times the light was switched on |
+| `sensor.<light>_turn_off_count` | — | `total_increasing` | Times the light was switched off |
 | `sensor.<light>_first_seen` | `timestamp` | — | When first added, if knowable |
 | `sensor.<light>_age` | `duration` (h) | `measurement` | Hours since first connected |
 
@@ -159,8 +159,8 @@ service: light_lifetime.set_values
 data:
   entity_id: light.kitchen_fl
   on_hours: 1200
-  turn_ons: 4000
-  turn_offs: 4000
+  turn_on_count: 4000
+  turn_off_count: 4000
   first_seen: "2023-06-01 12:00:00"
 ```
 

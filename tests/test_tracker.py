@@ -269,8 +269,8 @@ async def test_switch_cycles_counted_per_direction(hass: HomeAssistant) -> None:
         hass.states.async_set("light.kitchen", "off")
         await hass.async_block_till_done()
 
-    assert tracker.turn_ons("light.kitchen") == 3
-    assert tracker.turn_offs("light.kitchen") == 3
+    assert tracker.turn_on_count("light.kitchen") == 3
+    assert tracker.turn_off_count("light.kitchen") == 3
 
 
 async def test_attribute_churn_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
@@ -284,8 +284,8 @@ async def test_attribute_churn_is_not_a_switch_cycle(hass: HomeAssistant) -> Non
         hass.states.async_set("light.kitchen", "on", {"brightness": level})
     await hass.async_block_till_done()
 
-    assert tracker.turn_ons("light.kitchen") == 1
-    assert tracker.turn_offs("light.kitchen") == 0
+    assert tracker.turn_on_count("light.kitchen") == 1
+    assert tracker.turn_off_count("light.kitchen") == 0
 
 
 async def test_dropout_and_recovery_are_not_switch_cycles(
@@ -305,8 +305,8 @@ async def test_dropout_and_recovery_are_not_switch_cycles(
         record, "unavailable", "off", now + timedelta(minutes=3)
     )
 
-    assert tracker.turn_ons("light.kitchen") == 0
-    assert tracker.turn_offs("light.kitchen") == 0
+    assert tracker.turn_on_count("light.kitchen") == 0
+    assert tracker.turn_off_count("light.kitchen") == 0
     assert record[ATTR_DROPOUTS] == 2
 
 
@@ -316,4 +316,4 @@ async def test_startup_state_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
     record = tracker._ensure("light.kitchen")
 
     tracker._apply_transition(record, None, "on", datetime.now(timezone.utc))
-    assert tracker.turn_ons("light.kitchen") == 0
+    assert tracker.turn_on_count("light.kitchen") == 0

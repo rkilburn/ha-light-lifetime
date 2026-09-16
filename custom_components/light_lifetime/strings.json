@@ -124,11 +124,11 @@
       "dropouts": {
         "name": "Dropouts"
       },
-      "turn_ons": {
-        "name": "Turn-ons"
+      "turn_on_count": {
+        "name": "Turn-on count"
       },
-      "turn_offs": {
-        "name": "Turn-offs"
+      "turn_off_count": {
+        "name": "Turn-off count"
       },
       "first_seen": {
         "name": "First seen"
@@ -165,12 +165,12 @@
           "name": "Dropouts",
           "description": "Number of times the light has gone unavailable."
         },
-        "turn_ons": {
-          "name": "Turn-ons",
+        "turn_on_count": {
+          "name": "Turn-on count",
           "description": "Number of times the light has been switched on."
         },
-        "turn_offs": {
-          "name": "Turn-offs",
+        "turn_off_count": {
+          "name": "Turn-off count",
           "description": "Number of times the light has been switched off."
         },
         "first_seen": {
@@ -209,8 +209,8 @@
       "options": {
         "on_hours": "On hours",
         "dropouts": "Dropouts",
-        "turn_ons": "Turn-ons",
-        "turn_offs": "Turn-offs",
+        "turn_on_count": "Turn-on count",
+        "turn_off_count": "Turn-off count",
         "first_seen": "First seen",
         "age": "Age"
       }

@@ -212,25 +212,34 @@ async def test_turn_count_sensors_report_the_ledger(hass: HomeAssistant) -> None
     assert by_suffix["_turn_on_count"].attributes["source_entity_id"] == bulb
 
 
-async def test_summary_sensors_are_levels_not_meters(hass: HomeAssistant) -> None:
+async def test_fleet_totals_are_totals_not_meters(hass: HomeAssistant) -> None:
     """Fleet totals fall legitimately, so they must not be total_increasing.
 
-    The set they cover is whatever is tracked right now: excluding, resetting
-    or removing a light drops the total. total_increasing would read each of
-    those as a counter reset and carry the old total forward, inventing hours
-    the fleet never ran.
+    They are recomputed over whatever is tracked right now, so excluding,
+    resetting or removing a light drops them. total_increasing would read each
+    of those as a counter reset and carry the old total forward, inventing
+    hours the fleet never ran. TOTAL keeps the sum statistic and takes the
+    decrease at face value.
     """
     bulb = _bulb(hass, "kitchen_fl", "a")
     hass.states.async_set(bulb, "off")
     await hass.async_block_till_done()
     await _setup(hass, {})
 
-    for entity_id in (
-        "sensor.lights_total_hours",
-        "sensor.lights_total_dropouts",
-        "sensor.lights_tracked",
-        "sensor.lights_on",
-    ):
+    for entity_id in ("sensor.lights_total_hours", "sensor.lights_total_dropouts"):
+        state = hass.states.get(entity_id)
+        assert state is not None, entity_id
+        assert state.attributes["state_class"] == SensorStateClass.TOTAL, entity_id
+
+
+async def test_fleet_counts_stay_measurements(hass: HomeAssistant) -> None:
+    """The two that are instantaneous counts, not cumulative, stay as they were."""
+    bulb = _bulb(hass, "kitchen_fl", "a")
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {})
+
+    for entity_id in ("sensor.lights_tracked", "sensor.lights_on"):
         state = hass.states.get(entity_id)
         assert state is not None, entity_id
         assert state.attributes["state_class"] == SensorStateClass.MEASUREMENT, entity_id

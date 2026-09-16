@@ -57,9 +57,11 @@ into **long-term statistics** — which are never purged. You get permanent hour
 bulb, which an `input_number` can never give you. A drop to zero there means what
 `total_increasing` expects it to mean: the bulb was replaced and its counters reset.
 
-The four whole-collection sensors are `measurement` instead. They are levels rather than
-meters — the set they cover is whatever is tracked right now, so they fall when a light is
-excluded, reset or removed — and they get the same permanent min/mean/max history.
+`sensor.lights_total_hours` and `sensor.lights_total_dropouts` are `total` instead. They are
+cumulative like the per-light counters, but they are recomputed over whatever is tracked right
+now, so they fall when a light is excluded, reset or removed — `total` records that as a real
+decrease rather than a meter swap. `sensor.lights_tracked` and `sensor.lights_on` are
+`measurement`, being counts of the moment rather than running totals.
 
 ## Installation
 

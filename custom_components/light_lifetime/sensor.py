@@ -250,7 +250,7 @@ class LightTurnOnCountSensor(LightLifetimeSensorBase):
 
     _key = "turn_on_count"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = "turn-ons"
+    _attr_native_unit_of_measurement = "times"
     _attr_icon = "mdi:toggle-switch-variant"
 
     @property
@@ -263,7 +263,7 @@ class LightTurnOffCountSensor(LightLifetimeSensorBase):
 
     _key = "turn_off_count"
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = "turn-offs"
+    _attr_native_unit_of_measurement = "times"
     _attr_icon = "mdi:toggle-switch-variant-off"
 
     @property

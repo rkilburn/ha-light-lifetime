@@ -204,4 +204,8 @@ async def test_turn_count_sensors_report_the_ledger(hass: HomeAssistant) -> None
     assert int(by_suffix["_turn_on_count"].state) == 1
     assert int(by_suffix["_turn_off_count"].state) == 1
     assert by_suffix["_turn_on_count"].attributes["state_class"] == "total_increasing"
+    # Pinned: the unit lands in long-term statistics metadata, so changing it
+    # after release makes every user migrate their statistics.
+    assert by_suffix["_turn_on_count"].attributes["unit_of_measurement"] == "times"
+    assert by_suffix["_turn_off_count"].attributes["unit_of_measurement"] == "times"
     assert by_suffix["_turn_on_count"].attributes["source_entity_id"] == bulb

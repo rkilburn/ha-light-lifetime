@@ -75,7 +75,7 @@ set_values:
       selector:
         datetime:
 
-backfill:
+light_lifetime_backfill:
   name: Backfill from recorder
   description: >-
     Seed counters from Home Assistant's recorder history. This recovers only

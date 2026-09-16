@@ -164,12 +164,15 @@ data:
   first_seen: "2023-06-01 12:00:00"
 ```
 
-### `light_lifetime.backfill`
+### `light_lifetime.light_lifetime_backfill`
 
 Seed counters from Home Assistant's own recorder history.
 
+> **Renamed.** This action was `light_lifetime.backfill`. Automations and scripts calling the
+> old id will fail with "action not found" until they are updated to the new one.
+
 ```yaml
-action: light_lifetime.backfill
+action: light_lifetime.light_lifetime_backfill
 data:
   days: 30          # optional; the recorder returns only what it retained
   overwrite: false  # optional; skip lights that already have time

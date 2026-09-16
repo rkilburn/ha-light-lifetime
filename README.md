@@ -52,9 +52,14 @@ badges and handy for whole-collection automations:
 These can be turned off with the **Overall light sensors** option, though the prebuilt
 dashboard depends on them.
 
-The counters all carry `state_class: total_increasing`, so Home Assistant records them
+The per-light counters carry `state_class: total_increasing`, so Home Assistant records them
 into **long-term statistics** — which are never purged. You get permanent hourly history per
-bulb, which an `input_number` can never give you.
+bulb, which an `input_number` can never give you. A drop to zero there means what
+`total_increasing` expects it to mean: the bulb was replaced and its counters reset.
+
+The four whole-collection sensors are `measurement` instead. They are levels rather than
+meters — the set they cover is whatever is tracked right now, so they fall when a light is
+excluded, reset or removed — and they get the same permanent min/mean/max history.
 
 ## Installation
 

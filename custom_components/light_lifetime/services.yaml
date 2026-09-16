@@ -75,8 +75,8 @@ set_values:
       selector:
         datetime:
 
-light_lifetime_backfill:
-  name: Backfill from recorder
+backfill:
+  name: Light Lifetime backfill from recorder
   description: >-
     Seed counters from Home Assistant's recorder history. This recovers only
     what the recorder still holds (purge_keep_days, 10 by default), so it is a

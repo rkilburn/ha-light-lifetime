@@ -155,12 +155,14 @@ async def test_backfill_service_seeds_and_is_idempotent(hass: HomeAssistant) -> 
     assert tracker.on_seconds(source) == pytest.approx(3 * 3600, abs=5)
 
 
-async def test_backfill_action_id_is_namespaced(hass: HomeAssistant) -> None:
-    """Pin the registered id literally, not via the constant both sides share."""
+async def test_backfill_action_id_matches_the_documented_one(
+    hass: HomeAssistant,
+) -> None:
+    """Pin the public id literally; the constant would follow a rename silently."""
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={}, unique_id=DOMAIN)
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.services.has_service(DOMAIN, "light_lifetime_backfill")
-    assert not hass.services.has_service(DOMAIN, "backfill")
+    # README documents light_lifetime.backfill; renaming it breaks automations.
+    assert hass.services.has_service(DOMAIN, "backfill")

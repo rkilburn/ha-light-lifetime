@@ -179,8 +179,8 @@
         }
       }
     },
-    "light_lifetime_backfill": {
-      "name": "Backfill from recorder",
+    "backfill": {
+      "name": "Light Lifetime backfill from recorder",
       "description": "Seed counters from recorder history. Partial: limited to purge_keep_days.",
       "fields": {
         "entity_id": {

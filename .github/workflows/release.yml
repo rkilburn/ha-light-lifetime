@@ -1,35 +1,24 @@
-# Cutting a release is a deliberate act, so this runs only when somebody asks
-# for it: Actions -> Release -> Run workflow. It bumps the manifest, tags, and
-# creates the GitHub release in one go, because a tag whose manifest still
-# carries the previous version ships a build that misreports itself in Home
-# Assistant's UI and diagnostics.
+# Step two of two. Watches main for a manifest version that has no matching
+# tag, then tags it and publishes the release.
+#
+# This never writes to a branch. The manifest bump arrives through the pull
+# request that release-pr.yml opens, and a tag push is not governed by the
+# branch ruleset, so releases need no bypass and main stays protected.
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "custom_components/light_lifetime/manifest.json"
+  # Available by hand in case a merge happened while Actions was down, or a
+  # release needs re-cutting after a failure.
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release, without the leading v (e.g. 0.5.0)"
-        required: true
-        type: string
-      draft:
-        description: "Create the release as a draft, so the notes can be edited before it goes out"
-        required: false
-        default: true
-        type: boolean
 
 jobs:
-  # Every check that guards a pull request guards a release too, by calling the
-  # same workflow rather than restating it.
-  validate:
-    name: Validate
-    uses: ./.github/workflows/validate.yml
-
   release:
-    name: Release
-    needs: validate
+    name: Tag and publish
     runs-on: ubuntu-latest
-    # Needed to push the release commit and tag, and to create the release.
     permissions:
       contents: write
     steps:
@@ -39,76 +28,43 @@ jobs:
           # and history for the generated release notes.
           fetch-depth: 0
 
-      - name: Check the run targets main
+      # Keyed on "is there a tag for the manifest version" rather than on
+      # diffing the commit, so a re-run after a partial failure picks up where
+      # it left off instead of double-releasing or refusing.
+      - name: Work out whether there is anything to release
+        id: check
         run: |
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Releases are cut from main; this run is on $GITHUB_REF."
-            exit 1
+          version=$(python3 -c "import json; print(json.load(open('custom_components/light_lifetime/manifest.json'))['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already tagged; nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Inputs are interpolated through env rather than directly into the
-      # script, so a crafted version string cannot run as shell.
-      - name: Validate the version
+      - name: Tag the release
+        if: steps.check.outputs.release == 'true'
         env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Version must look like 1.2.3, got '$VERSION'."
-            exit 1
-          fi
-          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-            echo "::error::Tag v$VERSION already exists."
-            exit 1
-          fi
-
-      - name: Bump the manifest version
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          python3 - <<'PY'
-          import json, os, pathlib, re
-
-          version = os.environ["VERSION"]
-          path = pathlib.Path("custom_components/light_lifetime/manifest.json")
-          source = path.read_text()
-          # A targeted substitution keeps hassfest's required key order and the
-          # file's formatting; re-serialising the whole document would not.
-          bumped, count = re.subn(r'("version":\s*")[^"]*(")', rf"\g<1>{version}\g<2>", source)
-          if count != 1:
-              raise SystemExit(f"expected exactly one version key, found {count}")
-          if json.loads(bumped)["version"] != version:
-              raise SystemExit("manifest did not come back with the requested version")
-          path.write_text(bumped)
-          PY
-
-      - name: Commit, tag and push
-        env:
-          VERSION: ${{ inputs.version }}
+          VERSION: ${{ steps.check.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add custom_components/light_lifetime/manifest.json
-          # Already at this version (a re-run after a half-failed release, or a
-          # manual bump) leaves nothing to commit, which is not an error.
-          if git diff --cached --quiet; then
-            echo "Manifest already at $VERSION; tagging the existing commit."
-          else
-            git commit -m "Release $VERSION"
-          fi
-          git tag "v$VERSION"
-          git push origin HEAD:main
+          git tag -a "v$VERSION" -m "Release $VERSION"
           git push origin "v$VERSION"
 
-      - name: Create the release
+      - name: Publish the release
+        if: steps.check.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ inputs.version }}
-          DRAFT: ${{ inputs.draft }}
+          VERSION: ${{ steps.check.outputs.version }}
         run: |
-          if [ "$DRAFT" = "true" ]; then
-            gh release create "v$VERSION" --title "v$VERSION" --generate-notes --draft
-          else
-            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
-          fi
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
           url="$(gh release view "v$VERSION" --json url --jq .url)"
           echo "Released [v$VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Nothing to do
+        if: steps.check.outputs.release != 'true'
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: echo "v$VERSION is already released." >> "$GITHUB_STEP_SUMMARY"

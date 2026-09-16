@@ -7,9 +7,6 @@ on:
   schedule:
     - cron: "0 0 * * 1"
   workflow_dispatch:
-  # Callable so the release workflow gates on exactly these checks rather than
-  # a copy of them that can drift.
-  workflow_call:
 
 jobs:
   hassfest:

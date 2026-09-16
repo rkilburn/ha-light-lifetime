@@ -204,9 +204,34 @@ class LightLifetimeTracker:
             # Re-open an interval for anything already lit at startup.
             if state.state == STATE_ON and record.get(ATTR_ON_SINCE) is None:
                 record[ATTR_ON_SINCE] = now.isoformat()
+
+        self._settle_unlit_intervals(now)
         self._schedule_save()
         for entity_id in discovered:
             async_dispatcher_send(self.hass, SIGNAL_NEW_ENTITY, entity_id)
+
+    @callback
+    def _settle_unlit_intervals(self, now: datetime) -> None:
+        """Close intervals an outage left open on lights that are not lit now.
+
+        With ``count_downtime`` enabled ``_close_stale_intervals`` deliberately
+        leaves an interval open so the outage counts as on-time. Nothing else
+        ever closes it: the light's next transition is ``off -> on``, which only
+        re-anchors ``on_since``, so a light that came back dark would accrue
+        on-time indefinitely while sitting off. Startup is the honest end of
+        such an interval -- the light was assumed on through the outage, and is
+        demonstrably off now.
+
+        Lights with no state at all are settled the same way; a bulb removed
+        while Home Assistant was down is never visited by the discovery loop.
+        """
+        for entity_id, record in self._data.items():
+            if not record.get(ATTR_ON_SINCE):
+                continue
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state != STATE_ON:
+                self._close_interval(record, now)
+                _LOGGER.debug("Settled open interval for %s at startup", entity_id)
 
     # ------------------------------------------------------------------
     # Event handling

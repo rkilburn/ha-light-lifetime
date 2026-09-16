@@ -319,6 +319,72 @@ async def test_startup_state_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
     assert tracker.turn_on_count("light.kitchen") == 0
 
 
+async def test_downtime_interval_is_settled_when_the_light_came_back_off(
+    hass: HomeAssistant,
+) -> None:
+    """A light on at shutdown but off at startup stops accruing.
+
+    count_downtime leaves the interval open across the outage on purpose, and
+    nothing downstream ever closes it -- the next transition is off -> on,
+    which only re-anchors. Left alone the light accrues on-time for as long as
+    it sits dark.
+    """
+    from homeassistant.util import dt as dt_util
+
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    opened = dt_util.utcnow() - timedelta(days=7)
+    record = tracker._ensure("light.kitchen")
+    record[ATTR_ON_SINCE] = opened.isoformat()
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] is None
+    assert tracker.is_on("light.kitchen") is False
+    # The outage itself still counts -- that is what the option asks for --
+    # but it stops at startup rather than running on.
+    assert tracker.on_seconds("light.kitchen") == pytest.approx(7 * 86400, abs=5)
+
+
+async def test_downtime_interval_survives_when_the_light_is_still_on(
+    hass: HomeAssistant,
+) -> None:
+    """Settling must not disturb a light that really is lit at startup."""
+    from homeassistant.util import dt as dt_util
+
+    hass.states.async_set("light.kitchen", "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    opened = (dt_util.utcnow() - timedelta(hours=6)).isoformat()
+    record = tracker._ensure("light.kitchen")
+    record[ATTR_ON_SINCE] = opened
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] == opened
+    assert tracker.is_on("light.kitchen") is True
+
+
+async def test_open_interval_is_settled_for_a_light_that_no_longer_exists(
+    hass: HomeAssistant,
+) -> None:
+    """A bulb removed during an outage never appears in the discovery loop."""
+    from homeassistant.util import dt as dt_util
+
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    record = tracker._ensure("light.removed_while_down")
+    record[ATTR_ON_SINCE] = (dt_util.utcnow() - timedelta(days=2)).isoformat()
+    assert hass.states.get("light.removed_while_down") is None
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] is None
+
+
 async def test_deleted_bulb_stops_counting_but_keeps_its_history(
     hass: HomeAssistant,
 ) -> None:

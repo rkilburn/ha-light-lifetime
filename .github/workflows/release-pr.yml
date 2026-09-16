@@ -1,0 +1,103 @@
+# Step one of two. Opens a pull request that bumps the manifest version;
+# merging it is what actually triggers the release, via release.yml.
+#
+# The bump goes through a pull request rather than straight to main because the
+# branch ruleset requires one, and because a version bump is a code change that
+# should be reviewed like any other.
+name: Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.6.0)"
+        required: true
+        type: string
+
+jobs:
+  release-pr:
+    name: Open release PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Inputs are interpolated through env rather than into the script body,
+      # so a crafted version string cannot run as shell.
+      - name: Validate the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must look like 1.2.3, got '$VERSION'."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists."
+            exit 1
+          fi
+
+      - name: Bump the manifest version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          version = os.environ["VERSION"]
+          path = pathlib.Path("custom_components/light_lifetime/manifest.json")
+          source = path.read_text()
+          # A targeted substitution keeps hassfest's required key order and the
+          # file's formatting; re-serialising the whole document would not.
+          bumped, count = re.subn(r'("version":\s*")[^"]*(")', rf"\g<1>{version}\g<2>", source)
+          if count != 1:
+              raise SystemExit(f"expected exactly one version key, found {count}")
+          if json.loads(bumped)["version"] != version:
+              raise SystemExit("manifest did not come back with the requested version")
+          path.write_text(bumped)
+          PY
+
+      - name: Push the release branch
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "::error::Manifest is already at $VERSION; nothing to release."
+            exit 1
+          fi
+          git checkout -b "release/v$VERSION"
+          git add custom_components/light_lifetime/manifest.json
+          git commit -m "Release $VERSION"
+          git push --force-with-lease origin "release/v$VERSION"
+
+      - name: Open the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          body=$(cat <<EOF
+          Bumps the manifest to \`$VERSION\`.
+
+          Merging this tags \`v$VERSION\` and publishes the release automatically —
+          see \`.github/workflows/release.yml\`. Close it without merging to call the
+          release off; nothing is tagged until this lands on \`main\`.
+
+          ---
+
+          **If the required checks have not run on this PR**, that is expected: GitHub
+          suppresses workflow runs for events raised by \`GITHUB_TOKEN\`, to avoid
+          recursion. Close and immediately reopen this PR to raise the event as
+          yourself, which starts them.
+          EOF
+          )
+          url=$(gh pr create \
+            --base main \
+            --head "release/v$VERSION" \
+            --title "Release $VERSION" \
+            --body "$body")
+          echo "Opened $url" >> "$GITHUB_STEP_SUMMARY"

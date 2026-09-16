@@ -391,7 +391,14 @@ class TotalOnHoursSensor(SummarySensorBase):
     _attr_name = "Lights total hours"
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    # A cumulative quantity that can fall: the total is recomputed over
+    # whatever is tracked right now, so excluding, resetting or removing a
+    # light drops it. total_increasing would read each of those as a counter
+    # reset and carry the old total forward, inventing hours the fleet never
+    # ran; TOTAL keeps the sum statistic and handles the decrease honestly.
+    # Per-light counters stay total_increasing, where a drop really does mean
+    # a bulb was replaced.
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_suggested_display_precision = 0
     _attr_icon = "mdi:lightbulb-group-outline"
 
@@ -439,7 +446,8 @@ class TotalDropoutsSensor(SummarySensorBase):
 
     _key = "dropouts"
     _attr_name = "Lights total dropouts"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    # Cumulative and able to fall, for the same reason as the total above.
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_native_unit_of_measurement = "dropouts"
     _attr_icon = "mdi:lan-disconnect"
 

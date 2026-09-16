@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -209,3 +210,52 @@ async def test_turn_count_sensors_report_the_ledger(hass: HomeAssistant) -> None
     assert by_suffix["_turn_on_count"].attributes["unit_of_measurement"] == "times"
     assert by_suffix["_turn_off_count"].attributes["unit_of_measurement"] == "times"
     assert by_suffix["_turn_on_count"].attributes["source_entity_id"] == bulb
+
+
+async def test_fleet_totals_are_totals_not_meters(hass: HomeAssistant) -> None:
+    """Fleet totals fall legitimately, so they must not be total_increasing.
+
+    They are recomputed over whatever is tracked right now, so excluding,
+    resetting or removing a light drops them. total_increasing would read each
+    of those as a counter reset and carry the old total forward, inventing
+    hours the fleet never ran. TOTAL keeps the sum statistic and takes the
+    decrease at face value.
+    """
+    bulb = _bulb(hass, "kitchen_fl", "a")
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {})
+
+    for entity_id in ("sensor.lights_total_hours", "sensor.lights_total_dropouts"):
+        state = hass.states.get(entity_id)
+        assert state is not None, entity_id
+        assert state.attributes["state_class"] == SensorStateClass.TOTAL, entity_id
+
+
+async def test_fleet_counts_stay_measurements(hass: HomeAssistant) -> None:
+    """The two that are instantaneous counts, not cumulative, stay as they were."""
+    bulb = _bulb(hass, "kitchen_fl", "a")
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {})
+
+    for entity_id in ("sensor.lights_tracked", "sensor.lights_on"):
+        state = hass.states.get(entity_id)
+        assert state is not None, entity_id
+        assert state.attributes["state_class"] == SensorStateClass.MEASUREMENT, entity_id
+
+
+async def test_per_light_counters_stay_total_increasing(hass: HomeAssistant) -> None:
+    """A per-light drop really does mean a reset, so that one is a meter."""
+    source = _bulb(hass, "kitchen_fl", "a")
+    hass.states.async_set(source, "off")
+    await hass.async_block_till_done()
+    await _setup(hass, {})
+
+    registry = er.async_get(hass)
+    for key in ("on_hours", "dropouts", "turn_on_count", "turn_off_count"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{registry.async_get(source).id}_{key}"
+        )
+        state = hass.states.get(entity_id)
+        assert state.attributes["state_class"] == SensorStateClass.TOTAL_INCREASING, key

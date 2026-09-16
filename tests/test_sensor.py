@@ -241,3 +241,107 @@ def async_dispatcher_send_state(hass: HomeAssistant, entity_id: str) -> None:
     from custom_components.light_lifetime.const import SIGNAL_UPDATED
 
     async_dispatcher_send(hass, SIGNAL_UPDATED, entity_id)
+
+
+async def test_sensors_follow_an_entity_id_rename(hass: HomeAssistant) -> None:
+    """Renaming a light must carry its sensors across, not just the ledger.
+
+    The ledger key moves either way, but each sensor captured its source
+    entity_id at construction: without following the rename it asks about an
+    id that no longer has a record, reports 0, and stops responding to
+    updates.
+    """
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    hue = MockConfigEntry(domain="hue")
+    hue.add_to_hass(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=hue.entry_id,
+        identifiers={("hue", "bulb-rename")},
+        manufacturer="Signify Netherlands B.V.",
+        model="Hue white spot",
+    )
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-rename", suggested_object_id="old_name",
+        device_id=device.id,
+    ).entity_id
+    hass.states.async_set(source, "off")
+    await hass.async_block_till_done()
+
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={}, unique_id=DOMAIN)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    tracker = hass.data[DOMAIN][entry.entry_id]
+
+    tracker._data[source][ATTR_ON_SECONDS] = 7200.0
+    sensor_id = next(
+        e.entity_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if e.unique_id.endswith("_on_hours") and not e.unique_id.startswith(entry.entry_id)
+    )
+
+    ent_reg.async_update_entity(source, new_entity_id="light.new_name")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(sensor_id)
+    assert float(state.state) == pytest.approx(2.0)
+    assert state.attributes["source_entity_id"] == "light.new_name"
+
+    # And it keeps tracking the light under its new id.
+    hass.states.async_set("light.new_name", "on")
+    await hass.async_block_till_done()
+    assert hass.states.get(sensor_id).attributes["currently_on"] is True
+
+
+async def test_deleted_bulb_does_not_get_ghost_sensors_on_reload(
+    hass: HomeAssistant,
+) -> None:
+    """Deleting a bulb must not duplicate its sensors on the next reload.
+
+    `_stable_id` keys the unique_id on the registry id, so once that is gone a
+    rebuild produces a *second* set of sensors keyed on the entity_id instead,
+    alongside the originals that can never update again.
+    """
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    hue = MockConfigEntry(domain="hue")
+    hue.add_to_hass(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=hue.entry_id,
+        identifiers={("hue", "bulb-doomed")},
+        manufacturer="Signify Netherlands B.V.",
+        model="Hue white spot",
+    )
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-doomed", suggested_object_id="doomed",
+        device_id=device.id,
+    ).entity_id
+    hass.states.async_set(source, "on")
+    await hass.async_block_till_done()
+
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={}, unique_id=DOMAIN)
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    per_light = [
+        e.entity_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if not e.unique_id.startswith(entry.entry_id)
+    ]
+    assert len(per_light) == len(SENSOR_KEYS)
+
+    ent_reg.async_remove(source)
+    hass.states.async_remove(source)
+    await hass.async_block_till_done()
+
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    survivors = [
+        e.entity_id
+        for e in er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
+        if not e.unique_id.startswith(entry.entry_id)
+    ]
+    assert survivors == []

@@ -86,6 +86,7 @@ SENSOR_KEYS: Final = (
 DEFAULT_SENSORS: Final = SENSOR_KEYS
 
 SIGNAL_NEW_ENTITY: Final = f"{DOMAIN}_new_entity"
+SIGNAL_RENAMED: Final = f"{DOMAIN}_renamed"
 SIGNAL_UPDATED: Final = f"{DOMAIN}_updated"
 SIGNAL_REFRESH: Final = f"{DOMAIN}_refresh"
 

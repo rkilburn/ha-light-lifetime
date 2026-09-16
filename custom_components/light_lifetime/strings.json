@@ -56,7 +56,8 @@
       }
     },
     "abort": {
-      "already_configured": "Light Lifetime is already set up."
+      "already_configured": "Light Lifetime is already set up.",
+      "single_instance_allowed": "Light Lifetime is already set up. It tracks every light from one entry, so a second one would only duplicate it."
     }
   },
   "options": {

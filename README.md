@@ -252,9 +252,10 @@ python3 -m venv .venv
 
 ### Releasing
 
-Actions → **Release** → Run workflow, and give it a version like `0.5.0`. It runs the tests,
-bumps `manifest.json`, commits that as `Release <version>`, tags `v<version>` and creates the
-GitHub release. The manifest bump has to ride along with the tag: HACS installs from the tag,
+Actions → **Release** → Run workflow, and give it a version like `0.5.0`. It runs the full
+Validate workflow first — hassfest, HACS and the tests, the same checks a pull request gets —
+then bumps `manifest.json`, commits that as `Release <version>`, tags `v<version>` and creates
+the GitHub release. The manifest bump has to ride along with the tag: HACS installs from the tag,
 but Home Assistant reads the version from the manifest, so a tag without the bump ships a build
 that misreports itself.
 

@@ -328,6 +328,16 @@ class LightLifetimeTracker:
 
     @callback
     def _should_track(self, entity_id: str) -> bool:
+        entry = er.async_get(self.hass).async_get(entity_id)
+        # A light that exists nowhere in Home Assistant any more -- a deleted
+        # bulb, or an id that was never one -- keeps its history in the ledger
+        # but stops counting. Otherwise it inflates the fleet totals forever
+        # and its sensors are rebuilt on every reload under a fresh unique_id,
+        # because `_stable_id` has no registry id left to key on. The state
+        # machine is checked too: YAML lights are real but never registered.
+        if entry is None and self.hass.states.get(entity_id) is None:
+            return False
+
         # Opt-in mode: only the explicitly chosen lights, nothing else. New
         # lights are deliberately not picked up -- that is the point of opting in.
         if self._mode == MODE_SELECTED:
@@ -335,7 +345,6 @@ class LightLifetimeTracker:
         if entity_id in self._excluded_entities:
             return False
 
-        entry = er.async_get(self.hass).async_get(entity_id)
         device = None
         if entry is not None and entry.device_id:
             device = dr.async_get(self.hass).async_get(entry.device_id)

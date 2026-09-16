@@ -64,6 +64,11 @@ ATTR_TRACKED_SINCE: Final = "tracked_since"
 ATTR_ON_SINCE: Final = "on_since"
 
 SOURCE_REGISTRY: Final = "registry"
+# A date somebody stated rather than one Home Assistant recorded: the moment a
+# bulb was reset, or a first_seen passed to set_values. It is a real date, so
+# it is not a floor -- but it did not come from the registry and should not
+# claim to have.
+SOURCE_MANUAL: Final = "manual"
 SOURCE_UNKNOWN: Final = "unknown"
 
 # Sensor suffixes. Order matters only in that lookups must match the whole

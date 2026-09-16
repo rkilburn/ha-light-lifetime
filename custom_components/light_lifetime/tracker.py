@@ -53,6 +53,7 @@ from .const import (
     SAVE_DELAY,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
+    SIGNAL_RENAMED,
     SIGNAL_UPDATED,
     SOURCE_REGISTRY,
     SOURCE_UNKNOWN,
@@ -309,6 +310,10 @@ class LightLifetimeTracker:
             return
         self._data[new_id] = self._data.pop(old_id)
         self._schedule_save()
+        # Sensors capture their source entity_id at construction, so moving the
+        # ledger key alone would leave them reading an id that no longer has a
+        # record -- reporting 0 and never updating again.
+        async_dispatcher_send(self.hass, SIGNAL_RENAMED, old_id, new_id)
         _LOGGER.debug("Migrated lifetime counters %s -> %s", old_id, new_id)
 
     async def _handle_heartbeat(self, _now: datetime) -> None:

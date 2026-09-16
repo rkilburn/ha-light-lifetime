@@ -1,1 +1,8 @@
+# Home Assistant floor, matched to the minimum hacs.json advertises. Without
+# it pip is free to resolve pytest-homeassistant-custom-component to whatever
+# release happens to fit the interpreter, and the tests then pass against a
+# Home Assistant older than the one this integration claims to need. That is
+# how it went unnoticed that 2026.9 requires Python 3.14: the resolver quietly
+# settled on a 2026.2 release instead of failing.
+homeassistant>=2026.9.0
 pytest-homeassistant-custom-component

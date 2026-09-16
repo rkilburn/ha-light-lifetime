@@ -31,6 +31,7 @@ from .const import (
     SENSOR_KEYS,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
+    SIGNAL_RENAMED,
     SIGNAL_UPDATED,
     SOURCE_UNKNOWN,
 )
@@ -212,11 +213,23 @@ class LightLifetimeSensorBase(SensorEntity):
         def _refresh() -> None:
             self.async_write_ha_state()
 
+        @callback
+        def _renamed(old_id: str, new_id: str) -> None:
+            # The tracker moves the ledger key on a rename; follow it, or this
+            # sensor keeps asking about an entity_id that no longer has a
+            # record and reports 0 from here on.
+            if old_id == self._source_entity_id:
+                self._source_entity_id = new_id
+                self.async_write_ha_state()
+
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_UPDATED, _updated)
         )
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_REFRESH, _refresh)
+        )
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_RENAMED, _renamed)
         )
 
     @property

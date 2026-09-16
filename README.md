@@ -250,8 +250,10 @@ so there is no entry in the legacy `home-assistant/brands` `custom_integrations`
 
 ## Development
 
+Home Assistant 2026.9, the minimum this integration supports, needs **Python 3.14**.
+
 ```bash
-python3 -m venv .venv
+python3.14 -m venv .venv
 .venv/bin/pip install -r requirements-test.txt
 .venv/bin/python -m pytest tests/ -v
 ```

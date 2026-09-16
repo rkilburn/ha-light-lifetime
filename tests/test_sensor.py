@@ -5,8 +5,10 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+import voluptuous as vol
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -241,3 +243,62 @@ def async_dispatcher_send_state(hass: HomeAssistant, entity_id: str) -> None:
     from custom_components.light_lifetime.const import SIGNAL_UPDATED
 
     async_dispatcher_send(hass, SIGNAL_UPDATED, entity_id)
+
+
+async def test_services_reject_entities_that_are_not_lights(
+    hass: HomeAssistant,
+) -> None:
+    """A non-light target is a caller error, not a new ledger record.
+
+    The selectors in services.yaml only constrain the UI picker; a call from
+    an automation or the API goes straight to the schema.
+    """
+    _, tracker = await _setup(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_RESET, {ATTR_ENTITY_ID: ["switch.not_a_light"]},
+            blocking=True,
+        )
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_SET_VALUES,
+            {ATTR_ENTITY_ID: ["sensor.not_a_light"], "on_hours": 99},
+            blocking=True,
+        )
+
+    assert tracker.tracked_entities() == []
+
+
+async def test_services_reject_lights_home_assistant_does_not_have(
+    hass: HomeAssistant,
+) -> None:
+    """A typo must not leave a permanent record for a light that never was."""
+    _, tracker = await _setup(hass)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_RESET, {ATTR_ENTITY_ID: ["light.typo"]}, blocking=True
+        )
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_SET_VALUES,
+            {ATTR_ENTITY_ID: ["light.typo"], "on_hours": 99},
+            blocking=True,
+        )
+
+    assert tracker.tracked_entities() == []
+
+
+async def test_services_still_accept_a_real_light(hass: HomeAssistant) -> None:
+    """The guard must not get in the way of the documented usage."""
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_SET_VALUES,
+        {ATTR_ENTITY_ID: ["light.kitchen"], "on_hours": 12},
+        blocking=True,
+    )
+    assert tracker.on_seconds("light.kitchen") == pytest.approx(12 * 3600)

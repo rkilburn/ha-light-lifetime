@@ -14,10 +14,12 @@ from custom_components.light_lifetime.const import (
     CONF_INCLUDED_ENTITIES,
     CONF_MANUFACTURERS,
     CONF_MODE,
+    CONF_SENSORS,
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
     SECTION_BRANDS,
+    SENSOR_KEYS,
 )
 
 SIGNIFY = "Signify Netherlands B.V."
@@ -62,6 +64,7 @@ async def test_all_mode_branch_stores_flat_options(hass: HomeAssistant) -> None:
             SECTION_BRANDS: {CONF_MANUFACTURERS: [SIGNIFY]},
             CONF_EXCLUDED_ENTITIES: [],
             "exclude_aggregates": True,
+            CONF_SENSORS: list(SENSOR_KEYS),
             CONF_COUNT_DOWNTIME: False,
         },
     )
@@ -93,14 +96,21 @@ async def test_selected_mode_branch_skips_all_mode_fields(
     assert SECTION_BRANDS not in schema_keys
     assert CONF_EXCLUDED_ENTITIES not in schema_keys
     assert "exclude_aggregates" not in schema_keys
+    # Choosing the exposed sensors applies to both modes, so it stays.
+    assert CONF_SENSORS in schema_keys
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {CONF_INCLUDED_ENTITIES: [bulb], CONF_COUNT_DOWNTIME: False},
+        {
+            CONF_INCLUDED_ENTITIES: [bulb],
+            CONF_SENSORS: ["on_hours", "turn_ons"],
+            CONF_COUNT_DOWNTIME: False,
+        },
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["options"][CONF_MODE] == MODE_SELECTED
     assert result["options"][CONF_INCLUDED_ENTITIES] == [bulb]
+    assert result["options"][CONF_SENSORS] == ["on_hours", "turn_ons"]
 
 
 async def test_all_mode_step_offers_brand_section(hass: HomeAssistant) -> None:
@@ -148,6 +158,7 @@ async def test_options_flow_prefills_and_updates(hass: HomeAssistant) -> None:
             SECTION_BRANDS: {CONF_MANUFACTURERS: []},
             CONF_EXCLUDED_ENTITIES: [bulb],
             "exclude_aggregates": True,
+            CONF_SENSORS: ["on_hours"],
             CONF_COUNT_DOWNTIME: True,
         },
     )
@@ -155,6 +166,7 @@ async def test_options_flow_prefills_and_updates(hass: HomeAssistant) -> None:
     assert SECTION_BRANDS not in result["data"]
     assert result["data"][CONF_MANUFACTURERS] == []
     assert result["data"][CONF_EXCLUDED_ENTITIES] == [bulb]
+    assert result["data"][CONF_SENSORS] == ["on_hours"]
     assert result["data"][CONF_COUNT_DOWNTIME] is True
 
 
@@ -166,3 +178,50 @@ async def test_single_instance_only(hass: HomeAssistant) -> None:
     )
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "already_configured"
+
+
+async def test_sensor_picker_defaults_to_every_sensor(hass: HomeAssistant) -> None:
+    """A fresh install offers all of them ticked."""
+    _bulb(hass, "kitchen_fl", "a", SIGNIFY)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_MODE: MODE_ALL}
+    )
+
+    field = next(
+        k for k in result["data_schema"].schema if str(k) == CONF_SENSORS
+    )
+    assert field.default() == list(SENSOR_KEYS)
+
+
+async def test_sensor_picker_prefills_from_current_options(
+    hass: HomeAssistant,
+) -> None:
+    """Reconfiguring shows what is in force, not the defaults."""
+    bulb = _bulb(hass, "kitchen_fl", "a", SIGNIFY)
+    hass.states.async_set(bulb, "off")
+    await hass.async_block_till_done()
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={CONF_MODE: MODE_ALL, CONF_SENSORS: ["on_hours", "turn_offs"]},
+        unique_id=DOMAIN,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_MODE: MODE_ALL}
+    )
+
+    field = next(
+        k for k in result["data_schema"].schema if str(k) == CONF_SENSORS
+    )
+    assert field.default() == ["on_hours", "turn_offs"]

@@ -13,6 +13,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.light_lifetime.const import (
     ATTR_DROPOUTS,
     ATTR_ON_SECONDS,
+    ATTR_TURN_OFFS,
+    ATTR_TURN_ONS,
     DOMAIN,
     SERVICE_BACKFILL,
 )
@@ -44,10 +46,12 @@ def test_replay_sums_on_intervals() -> None:
             ("off", BASE + timedelta(hours=10, minutes=30)),  # 0.5h
         ],
     )
-    seconds, dropouts, first = LightLifetimeTracker._replay(states, END)
-    assert seconds == pytest.approx(2.5 * 3600)
-    assert dropouts == 0
-    assert first == BASE
+    replayed = LightLifetimeTracker._replay(states, END)
+    assert replayed.on_seconds == pytest.approx(2.5 * 3600)
+    assert replayed.dropouts == 0
+    assert replayed.turn_ons == 2
+    assert replayed.turn_offs == 2
+    assert replayed.first_ts == BASE
 
 
 def test_replay_counts_dropouts_and_closes_interval() -> None:
@@ -62,16 +66,22 @@ def test_replay_counts_dropouts_and_closes_interval() -> None:
             ("off", BASE + timedelta(hours=5)),
         ],
     )
-    seconds, dropouts, _ = LightLifetimeTracker._replay(states, END)
-    assert seconds == pytest.approx(3 * 3600)  # 2h + 1h
-    assert dropouts == 1
+    replayed = LightLifetimeTracker._replay(states, END)
+    assert replayed.on_seconds == pytest.approx(3 * 3600)  # 2h + 1h
+    assert replayed.dropouts == 1
+    # on -> unavailable -> on is a dropout and a recovery, not a switch cycle;
+    # only the closing on -> off counts.
+    assert replayed.turn_ons == 0
+    assert replayed.turn_offs == 1
 
 
 def test_replay_handles_still_on_at_window_end() -> None:
     """A light still on when history ends accrues up to the end."""
     states = _states("light.kitchen", [("on", END - timedelta(hours=4))])
-    seconds, _, _ = LightLifetimeTracker._replay(states, END)
-    assert seconds == pytest.approx(4 * 3600)
+    replayed = LightLifetimeTracker._replay(states, END)
+    assert replayed.on_seconds == pytest.approx(4 * 3600)
+    # The first recorded state has no predecessor, so it starts no cycle.
+    assert replayed.turn_ons == 0
 
 
 async def test_backfill_service_seeds_and_is_idempotent(hass: HomeAssistant) -> None:
@@ -113,10 +123,16 @@ async def test_backfill_service_seeds_and_is_idempotent(hass: HomeAssistant) -> 
         record = tracker._data[source]
         if float(record.get(ATTR_ON_SECONDS, 0.0)) > 0 and not overwrite:
             return {"updated": 0, "skipped": 1, "entities": {}}
-        seconds, drops, _ = LightLifetimeTracker._replay(recorded, END)
-        record[ATTR_ON_SECONDS] = seconds
-        record[ATTR_DROPOUTS] = drops
-        return {"updated": 1, "skipped": 0, "entities": {source: seconds / 3600}}
+        replayed = LightLifetimeTracker._replay(recorded, END)
+        record[ATTR_ON_SECONDS] = replayed.on_seconds
+        record[ATTR_DROPOUTS] = replayed.dropouts
+        record[ATTR_TURN_ONS] = replayed.turn_ons
+        record[ATTR_TURN_OFFS] = replayed.turn_offs
+        return {
+            "updated": 1,
+            "skipped": 0,
+            "entities": {source: replayed.on_seconds / 3600},
+        }
 
     tracker.async_backfill = _fake_backfill
 
@@ -127,6 +143,7 @@ async def test_backfill_service_seeds_and_is_idempotent(hass: HomeAssistant) -> 
     assert result["updated"] == 1
     assert result["total_hours"] == pytest.approx(3.0)
     assert tracker.dropouts(source) == 1
+    assert tracker.turn_ons(source) == 1
 
     # Second run must not double-count.
     again = await hass.services.async_call(

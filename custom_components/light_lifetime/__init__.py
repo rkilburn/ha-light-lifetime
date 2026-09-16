@@ -42,6 +42,8 @@ SET_VALUES_SCHEMA = vol.Schema(
         vol.Required(ATTR_ENTITY_ID): _ENTITY_SELECTOR,
         vol.Optional("on_hours"): vol.Coerce(float),
         vol.Optional("dropouts"): vol.Coerce(int),
+        vol.Optional("turn_ons"): vol.Coerce(int),
+        vol.Optional("turn_offs"): vol.Coerce(int),
         vol.Optional("first_seen"): cv.datetime,
     }
 )
@@ -65,6 +67,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                     entity_id,
                     on_hours=call.data.get("on_hours"),
                     dropouts=call.data.get("dropouts"),
+                    turn_ons=call.data.get("turn_ons"),
+                    turn_offs=call.data.get("turn_offs"),
                     first_seen=call.data.get("first_seen"),
                 )
 

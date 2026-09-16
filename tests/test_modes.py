@@ -15,7 +15,10 @@ from custom_components.light_lifetime.const import (
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
+    SENSOR_KEYS,
 )
+
+PER_LIGHT = len(SENSOR_KEYS)
 
 
 def _bulb(hass: HomeAssistant, object_id: str, unique: str) -> str:
@@ -111,7 +114,7 @@ async def test_opt_out_mode_still_auto_discovers(hass: HomeAssistant) -> None:
     hass.states.async_set(later, "on")
     await hass.async_block_till_done()
 
-    assert len(_per_light(hass)) == before + 4
+    assert len(_per_light(hass)) == before + PER_LIGHT
 
 
 async def test_narrowing_selection_removes_stale_entities(
@@ -125,7 +128,7 @@ async def test_narrowing_selection_removes_stale_entities(
     await hass.async_block_till_done()
 
     entry, _ = await _setup(hass, {CONF_MODE: MODE_ALL})
-    assert len(_per_light(hass)) == 8  # 4 per light
+    assert len(_per_light(hass)) == 2 * PER_LIGHT
 
     hass.config_entries.async_update_entry(
         entry, options={CONF_MODE: MODE_ALL, CONF_EXCLUDED_ENTITIES: [b]}
@@ -133,7 +136,7 @@ async def test_narrowing_selection_removes_stale_entities(
     await hass.async_block_till_done()
 
     remaining = _per_light(hass)
-    assert len(remaining) == 4, [s.entity_id for s in remaining]
+    assert len(remaining) == PER_LIGHT, [s.entity_id for s in remaining]
 
 
 async def test_summary_sensors_created_by_default(hass: HomeAssistant) -> None:
@@ -159,7 +162,7 @@ async def test_summary_sensors_can_be_disabled(hass: HomeAssistant) -> None:
     ids = {s.entity_id for s in hass.states.async_all("sensor")}
     assert not any(i.startswith("sensor.lights_") for i in ids), ids
     # Per-light sensors are unaffected.
-    assert len(_per_light(hass)) == 4
+    assert len(_per_light(hass)) == PER_LIGHT
 
 
 async def test_summary_totals_reflect_tracked_lights(hass: HomeAssistant) -> None:

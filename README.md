@@ -1,6 +1,7 @@
 # Light Lifetime
 
-Track **lifetime on-hours**, **dropout counts** and **age** for every light in Home Assistant.
+Track **lifetime on-hours**, **switch cycles**, **dropout counts** and **age** for every light
+in Home Assistant.
 
 Lights are discovered automatically — including ones you pair later. There is no per-bulb
 configuration, no YAML to regenerate, and no dependency on the recorder.
@@ -22,14 +23,21 @@ creates sensors dynamically as lights appear.
 
 ## Entities
 
-Four sensors per light, attached to the bulb's own device:
+Six sensors per light, attached to the bulb's own device:
 
 | Sensor | Device class | State class | Notes |
 | --- | --- | --- | --- |
 | `sensor.<light>_on_hours` | `duration` (h) | `total_increasing` | Lifetime hours switched on |
 | `sensor.<light>_dropouts` | — | `total_increasing` | Times the light went `unavailable` |
+| `sensor.<light>_turn_ons` | — | `total_increasing` | Times the light was switched on |
+| `sensor.<light>_turn_offs` | — | `total_increasing` | Times the light was switched off |
 | `sensor.<light>_first_seen` | `timestamp` | — | When first added, if knowable |
 | `sensor.<light>_age` | `duration` (h) | `measurement` | Hours since first connected |
+
+Pick which of these you want under **Sensors for each light** — see [Options](#options). Hours
+answer "how worn is this bulb?"; switch cycles answer the other half, since LED drivers and
+relays are rated in cycles as well as hours, and a bulb on a motion sensor can rack up tens of
+thousands of them while barely accumulating hours.
 
 Plus four sensors covering every tracked light at once, used by the example dashboard's
 badges and handy for whole-collection automations:
@@ -44,7 +52,7 @@ badges and handy for whole-collection automations:
 These can be turned off with the **Overall light sensors** option, though the prebuilt
 dashboard depends on them.
 
-`on_hours` and `dropouts` carry `state_class: total_increasing`, so Home Assistant records them
+The counters all carry `state_class: total_increasing`, so Home Assistant records them
 into **long-term statistics** — which are never purged. You get permanent hourly history per
 bulb, which an `input_number` can never give you.
 
@@ -81,6 +89,7 @@ schema is static, so fields cannot be hidden reactively within a single form.
 | Lights to track | none | Opt-in mode only: the explicit allow-list. |
 | Lights to ignore | none | Track-all mode only: the exclusions. |
 | Exclude groups and rooms | on | Skip light entities that aggregate other lights (Hue Rooms and Zones, HA light groups). Leaving these in double-counts every member bulb. |
+| Sensors for each light | all six | Which statistics get a sensor per light. Unticking one removes its sensors; the counters keep running underneath. |
 | Overall light sensors | on | Create the four whole-collection sensors above. Required by the prebuilt dashboard. |
 | Count downtime as on-time | off | When Home Assistant is offline, assume lights that were on stayed on. Off means only observed time counts. |
 
@@ -89,8 +98,9 @@ from the device registry, so it lists real values rather than a guessed set. You
 a brand that is not listed yet. A light with no manufacturer recorded cannot match a brand
 filter, so it is excluded while one is active.
 
-Narrowing the selection removes the now-unused sensors, but their counters are **kept** in the
-ledger — re-include a light later and its history is still there.
+Narrowing the selection — fewer lights, or fewer sensors per light — removes the now-unused
+sensors, but their counters are **kept** in the ledger. Re-include a light, or re-tick a sensor,
+and its history is still there.
 
 ## Using the values in automations
 
@@ -149,6 +159,8 @@ service: light_lifetime.set_values
 data:
   entity_id: light.kitchen_fl
   on_hours: 1200
+  turn_ons: 4000
+  turn_offs: 4000
   first_seen: "2023-06-01 12:00:00"
 ```
 
@@ -197,6 +209,12 @@ names are prefixed with their area where that disambiguates them.
 **Attribute churn is ignored.** Only changes where the state *value* differs are counted.
 On a fleet running adaptive lighting, brightness and colour updates can be 85% of all light
 events — on one real instance, 1712 events/day of which only 266 were genuine transitions.
+
+**Switch cycles count switching, not flakiness.** A turn-on is an observed `off` → `on`
+transition and a turn-off an observed `on` → `off`; a bulb dropping to `unavailable` and coming
+back is a dropout and a recovery, not somebody working the switch. Counting those would turn one
+flaky radio into thousands of phantom cycles. The consequence is that a switch-off missed during
+an outage is simply never counted, which is why the two counters can drift apart by a few.
 
 **Downtime is not silently counted.** The tracker writes a heartbeat every five minutes. If
 Home Assistant is killed uncleanly with a light on, the open interval is truncated at the last

@@ -24,6 +24,8 @@ CONF_INCLUDED_ENTITIES: Final = "included_entities"
 # persisted shape stays flat.
 SECTION_BRANDS: Final = "brand_filter"
 CONF_SUMMARY_SENSORS: Final = "summary_sensors"
+# Which per-light sensors to create. Absent means "all of them".
+CONF_SENSORS: Final = "sensors"
 CONF_MANUFACTURERS: Final = "manufacturers"
 CONF_EXCLUDE_AGGREGATES: Final = "exclude_aggregates"
 CONF_EXCLUDED_ENTITIES: Final = "excluded_entities"
@@ -54,6 +56,8 @@ EPOCH_SENTINEL_YEAR: Final = 1971
 # Record keys
 ATTR_ON_SECONDS: Final = "on_seconds"
 ATTR_DROPOUTS: Final = "dropouts"
+ATTR_TURN_ONS: Final = "turn_ons"
+ATTR_TURN_OFFS: Final = "turn_offs"
 ATTR_FIRST_SEEN: Final = "first_seen"
 ATTR_FIRST_SEEN_SOURCE: Final = "first_seen_source"
 ATTR_TRACKED_SINCE: Final = "tracked_since"
@@ -65,7 +69,16 @@ SOURCE_UNKNOWN: Final = "unknown"
 # Sensor suffixes. Order matters only in that lookups must match the whole
 # key -- "on_hours" and "first_seen" contain underscores, so a naive
 # rsplit("_", 1) on a unique_id silently mis-parses them.
-SENSOR_KEYS: Final = ("on_hours", "dropouts", "first_seen", "age")
+SENSOR_KEYS: Final = (
+    "on_hours",
+    "dropouts",
+    "turn_ons",
+    "turn_offs",
+    "first_seen",
+    "age",
+)
+# Every sensor is offered by default; the options flow narrows the set.
+DEFAULT_SENSORS: Final = SENSOR_KEYS
 
 SIGNAL_NEW_ENTITY: Final = f"{DOMAIN}_new_entity"
 SIGNAL_UPDATED: Final = f"{DOMAIN}_updated"

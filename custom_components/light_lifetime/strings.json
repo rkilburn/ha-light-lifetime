@@ -216,5 +216,10 @@
         "age": "Age"
       }
     }
+  },
+  "exceptions": {
+    "unknown_entity": {
+      "message": "Home Assistant has no light called {entity_id}."
+    }
   }
 }

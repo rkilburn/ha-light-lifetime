@@ -260,7 +260,15 @@ class LightLifetimeOptionsFlow(_SharedSteps, OptionsFlow):
         self._defaults = {}
 
     def _finish(self, options: dict[str, Any]) -> ConfigFlowResult:
-        return self.async_create_entry(title="", data=options)
+        # Layered over the options already in force, because each mode's step
+        # only shows its own fields: submitting the "selected" step would
+        # otherwise drop the brand filter and the exclusions outright, and
+        # switching back would offer them empty with no hint they were ever
+        # set. The inactive mode's keys are simply ignored by the tracker, so
+        # carrying them is free and switching modes becomes reversible.
+        return self.async_create_entry(
+            title="", data={**self.config_entry.options, **options}
+        )
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

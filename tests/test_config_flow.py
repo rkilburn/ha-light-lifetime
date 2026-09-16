@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import pathlib
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -171,13 +174,19 @@ async def test_options_flow_prefills_and_updates(hass: HomeAssistant) -> None:
 
 
 async def test_single_instance_only(hass: HomeAssistant) -> None:
+    """A second entry aborts before the flow asks anything.
+
+    The reason is Home Assistant's own: with single_config_entry declared the
+    flow manager refuses ahead of async_step_user, so the unique_id guard
+    inside the step never gets a chance to answer "already_configured".
+    """
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={}, unique_id=DOMAIN)
     entry.add_to_hass(hass)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "single_instance_allowed"
 
 
 async def test_sensor_picker_defaults_to_every_sensor(hass: HomeAssistant) -> None:
@@ -225,3 +234,20 @@ async def test_sensor_picker_prefills_from_current_options(
         k for k in result["data_schema"].schema if str(k) == CONF_SENSORS
     )
     assert field.default() == ["on_hours", "turn_off_count"]
+
+
+async def test_manifest_declares_a_single_config_entry() -> None:
+    """The flow already enforces it; the manifest is what the UI reads.
+
+    Without the declaration Home Assistant still offers "Add entry" and only
+    refuses once the user has walked the whole flow.
+    """
+    manifest = json.loads(
+        (
+            pathlib.Path(__file__).parent.parent
+            / "custom_components"
+            / "light_lifetime"
+            / "manifest.json"
+        ).read_text()
+    )
+    assert manifest["single_config_entry"] is True

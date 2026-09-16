@@ -22,7 +22,9 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     ATTR_FIRST_SEEN_SOURCE,
+    CONF_SENSORS,
     CONF_SUMMARY_SENSORS,
+    DEFAULT_SENSORS,
     DEFAULT_SUMMARY_SENSORS,
     ATTR_TRACKED_SINCE,
     DOMAIN,
@@ -45,6 +47,7 @@ async def async_setup_entry(
     """Set up sensors for every tracked light, now and in the future."""
     tracker: LightLifetimeTracker = hass.data[DOMAIN][entry.entry_id]
     known: set[str] = set()
+    keys = _enabled_keys(entry)
 
     @callback
     def _add(entity_id: str) -> None:
@@ -52,12 +55,7 @@ async def async_setup_entry(
             return
         known.add(entity_id)
         async_add_entities(
-            [
-                LightOnHoursSensor(tracker, entity_id),
-                LightDropoutsSensor(tracker, entity_id),
-                LightFirstSeenSensor(tracker, entity_id),
-                LightAgeSensor(tracker, entity_id),
-            ]
+            [SENSOR_TYPES[key](tracker, entity_id) for key in keys]
         )
 
     # The ledger keeps history for lights that are no longer tracked (so their
@@ -77,7 +75,7 @@ async def async_setup_entry(
         if tracker.should_track(entity_id):
             _add(entity_id)
 
-    _async_remove_orphans(hass, entry, tracker)
+    _async_remove_orphans(hass, entry, tracker, keys)
 
     # Lights paired later are picked up the moment the tracker notices them --
     # no reconfiguration, no restart.
@@ -86,35 +84,70 @@ async def async_setup_entry(
     )
 
 
-def _source_registry_id(unique_id: str) -> str | None:
-    """Strip the sensor key suffix from a unique_id to get the source light."""
+def _enabled_keys(entry: ConfigEntry) -> tuple[str, ...]:
+    """Which per-light sensors this entry exposes.
+
+    An absent option means every sensor, so installs that predate the setting
+    keep all of theirs. The result follows SENSOR_KEYS order and drops anything
+    unrecognised, so a stale key left in options cannot break setup.
+    """
+    configured = entry.options.get(CONF_SENSORS)
+    if configured is None:
+        return tuple(DEFAULT_SENSORS)
+    chosen = set(configured)
+    return tuple(key for key in SENSOR_KEYS if key in chosen)
+
+
+def _split_unique_id(unique_id: str) -> tuple[str, str] | None:
+    """Split a per-light unique_id into its source registry id and sensor key."""
     for key in SENSOR_KEYS:
         suffix = f"_{key}"
         if unique_id.endswith(suffix):
-            return unique_id[: -len(suffix)]
+            return unique_id[: -len(suffix)], key
     return None
 
 
 @callback
 def _async_remove_orphans(
-    hass: HomeAssistant, entry: ConfigEntry, tracker: LightLifetimeTracker
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    tracker: LightLifetimeTracker,
+    keys: tuple[str, ...],
 ) -> None:
-    """Drop entities whose source light is no longer tracked.
+    """Drop entities the current options no longer ask for.
 
-    Without this, narrowing the selection in the options flow would leave
-    stale sensors behind that never update again.
+    Without this, narrowing the selection in the options flow -- fewer lights,
+    or fewer sensors per light -- would leave stale entities behind that never
+    update again.
     """
     registry = er.async_get(hass)
     # unique_id is "<source registry id>_<key>", so map registry ids back to
     # entity_ids once rather than scanning per sensor.
     by_registry_id = {e.id: e.entity_id for e in registry.entities.values()}
+    summary_prefix = f"{entry.entry_id}_summary_"
+    summaries = entry.options.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS)
 
     for sensor in er.async_entries_for_config_entry(registry, entry.entry_id):
-        source_id = _source_registry_id(sensor.unique_id)
-        source_entity_id = by_registry_id.get(source_id) if source_id else None
+        # Fleet aggregates belong to the entry itself, not to any light, so
+        # they are matched by prefix before the per-light parsing below --
+        # "<entry_id>_summary_on_hours" also ends in a sensor key.
+        if sensor.unique_id.startswith(summary_prefix):
+            if not summaries:
+                registry.async_remove(sensor.entity_id)
+                _LOGGER.debug("Removed %s; summary sensors are off", sensor.entity_id)
+            continue
+
+        split = _split_unique_id(sensor.unique_id)
+        if split is None:
+            continue
+        source_id, key = split
+        source_entity_id = by_registry_id.get(source_id)
         if source_entity_id is None:
             continue
-        if not tracker.should_track(source_entity_id):
+        if key not in keys:
+            registry.async_remove(sensor.entity_id)
+            _LOGGER.debug("Removed %s; %s is not exposed", sensor.entity_id, key)
+        elif not tracker.should_track(source_entity_id):
             registry.async_remove(sensor.entity_id)
             _LOGGER.debug(
                 "Removed %s; %s is no longer tracked",
@@ -212,6 +245,32 @@ class LightDropoutsSensor(LightLifetimeSensorBase):
         return self._tracker.dropouts(self._source_entity_id)
 
 
+class LightTurnOnCountSensor(LightLifetimeSensorBase):
+    """How many times the light has been switched on."""
+
+    _key = "turn_on_count"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "times"
+    _attr_icon = "mdi:toggle-switch-variant"
+
+    @property
+    def native_value(self) -> int:
+        return self._tracker.turn_on_count(self._source_entity_id)
+
+
+class LightTurnOffCountSensor(LightLifetimeSensorBase):
+    """How many times the light has been switched off."""
+
+    _key = "turn_off_count"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = "times"
+    _attr_icon = "mdi:toggle-switch-variant-off"
+
+    @property
+    def native_value(self) -> int:
+        return self._tracker.turn_off_count(self._source_entity_id)
+
+
 class LightFirstSeenSensor(LightLifetimeSensorBase):
     """When the light was first added to Home Assistant, if that is knowable."""
 
@@ -261,6 +320,17 @@ class LightAgeSensor(LightLifetimeSensorBase):
             "is_floor": self._tracker.first_seen_source(self._source_entity_id)
             == SOURCE_UNKNOWN,
         }
+
+
+# Keyed by sensor key so the enabled set drives construction directly.
+SENSOR_TYPES: dict[str, type[LightLifetimeSensorBase]] = {
+    "on_hours": LightOnHoursSensor,
+    "dropouts": LightDropoutsSensor,
+    "turn_on_count": LightTurnOnCountSensor,
+    "turn_off_count": LightTurnOffCountSensor,
+    "first_seen": LightFirstSeenSensor,
+    "age": LightAgeSensor,
+}
 
 
 class SummarySensorBase(SensorEntity):

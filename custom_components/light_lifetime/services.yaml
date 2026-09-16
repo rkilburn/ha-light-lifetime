@@ -48,6 +48,26 @@ set_values:
           max: 1000000
           step: 1
           mode: box
+    turn_on_count:
+      name: Turn-on count
+      description: Number of times the light has been switched on.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100000000
+          step: 1
+          mode: box
+    turn_off_count:
+      name: Turn-off count
+      description: Number of times the light has been switched off.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100000000
+          step: 1
+          mode: box
     first_seen:
       name: First seen
       description: When the light was first connected.
@@ -56,7 +76,7 @@ set_values:
         datetime:
 
 backfill:
-  name: Backfill from recorder
+  name: Light Lifetime backfill from recorder
   description: >-
     Seed counters from Home Assistant's recorder history. This recovers only
     what the recorder still holds (purge_keep_days, 10 by default), so it is a

@@ -32,15 +32,18 @@ from .const import (
     CONF_INCLUDED_ENTITIES,
     CONF_MANUFACTURERS,
     CONF_MODE,
+    CONF_SENSORS,
     CONF_SUMMARY_SENSORS,
     DEFAULT_COUNT_DOWNTIME,
     DEFAULT_EXCLUDE_AGGREGATES,
     DEFAULT_MODE,
+    DEFAULT_SENSORS,
     DEFAULT_SUMMARY_SENSORS,
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
     SECTION_BRANDS,
+    SENSOR_KEYS,
 )
 
 TITLE = "Light Lifetime"
@@ -62,6 +65,26 @@ def _manufacturer_options(hass: HomeAssistant) -> list[str]:
         if device and device.manufacturer:
             found.add(device.manufacturer)
     return sorted(found)
+
+
+def _sensors_field(defaults: dict[str, Any]) -> dict[Any, Any]:
+    """Which sensors to create per light -- the same choice in both modes.
+
+    Rendered as a checkbox list rather than a dropdown: the set is small,
+    fixed, and every option should be visible without opening anything.
+    """
+    return {
+        vol.Optional(
+            CONF_SENSORS, default=list(defaults.get(CONF_SENSORS, DEFAULT_SENSORS))
+        ): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=list(SENSOR_KEYS),
+                multiple=True,
+                translation_key=CONF_SENSORS,
+                mode=selector.SelectSelectorMode.LIST,
+            )
+        )
+    }
 
 
 def _mode_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -119,6 +142,7 @@ def _all_schema(hass: HomeAssistant, defaults: dict[str, Any]) -> vol.Schema:
                     CONF_EXCLUDE_AGGREGATES, DEFAULT_EXCLUDE_AGGREGATES
                 ),
             ): selector.BooleanSelector(),
+            **_sensors_field(defaults),
             vol.Optional(
                 CONF_SUMMARY_SENSORS,
                 default=defaults.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS),
@@ -141,6 +165,7 @@ def _selected_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="light", multiple=True)
             ),
+            **_sensors_field(defaults),
             vol.Optional(
                 CONF_SUMMARY_SENSORS,
                 default=defaults.get(CONF_SUMMARY_SENSORS, DEFAULT_SUMMARY_SENSORS),

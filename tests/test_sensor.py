@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.light_lifetime.const import (
     ATTR_ON_SECONDS,
     DOMAIN,
+    SENSOR_KEYS,
     SERVICE_RESET,
     SERVICE_SET_VALUES,
     STORAGE_KEY,
@@ -49,13 +50,13 @@ def _make_bulb(hass: HomeAssistant, object_id: str, unique: str) -> str:
     return entry.entity_id
 
 
-async def test_creates_four_sensors_per_light(hass: HomeAssistant) -> None:
+async def test_creates_every_sensor_per_light(hass: HomeAssistant) -> None:
     entity_id = _make_bulb(hass, "kitchen_fl", "bulb-1")
     hass.states.async_set(entity_id, "off")
     await hass.async_block_till_done()
     await _setup(hass)
 
-    for suffix in ("on_hours", "dropouts", "first_seen", "age"):
+    for suffix in SENSOR_KEYS:
         matches = [
             s for s in hass.states.async_all("sensor") if s.entity_id.endswith(suffix)
         ]
@@ -112,7 +113,9 @@ async def test_new_light_is_discovered_without_reconfiguration(
     await hass.async_block_till_done()
 
     after = len(hass.states.async_all("sensor"))
-    assert after == before + 4, "expected four sensors for the newly paired bulb"
+    assert after == before + len(
+        SENSOR_KEYS
+    ), "expected a full set of sensors for the newly paired bulb"
 
 
 async def test_unknown_first_seen_is_not_fabricated(hass: HomeAssistant) -> None:

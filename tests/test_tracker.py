@@ -255,3 +255,65 @@ async def test_downtime_counted_when_opted_in(hass: HomeAssistant) -> None:
     tracker._close_stale_intervals()
 
     assert tracker._data["light.kitchen"][ATTR_ON_SINCE] == opened
+
+
+async def test_switch_cycles_counted_per_direction(hass: HomeAssistant) -> None:
+    """Each observed off -> on and on -> off moves its own counter."""
+    _, tracker = await _setup(hass)
+
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    for _ in range(3):
+        hass.states.async_set("light.kitchen", "on")
+        await hass.async_block_till_done()
+        hass.states.async_set("light.kitchen", "off")
+        await hass.async_block_till_done()
+
+    assert tracker.turn_on_count("light.kitchen") == 3
+    assert tracker.turn_off_count("light.kitchen") == 3
+
+
+async def test_attribute_churn_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
+    """Brightness updates while on must not inflate the cycle counts."""
+    _, tracker = await _setup(hass)
+
+    hass.states.async_set("light.kitchen", "off")
+    hass.states.async_set("light.kitchen", "on")
+    await hass.async_block_till_done()
+    for level in (120, 140, 160, 180):
+        hass.states.async_set("light.kitchen", "on", {"brightness": level})
+    await hass.async_block_till_done()
+
+    assert tracker.turn_on_count("light.kitchen") == 1
+    assert tracker.turn_off_count("light.kitchen") == 0
+
+
+async def test_dropout_and_recovery_are_not_switch_cycles(
+    hass: HomeAssistant,
+) -> None:
+    """A flaky radio is a dropout, not somebody working the switch."""
+    _, tracker = await _setup(hass)
+    record = tracker._ensure("light.kitchen")
+    now = datetime.now(timezone.utc)
+
+    tracker._apply_transition(record, "on", "unavailable", now)
+    tracker._apply_transition(record, "unavailable", "on", now + timedelta(minutes=1))
+    tracker._apply_transition(
+        record, "on", "unavailable", now + timedelta(minutes=2)
+    )
+    tracker._apply_transition(
+        record, "unavailable", "off", now + timedelta(minutes=3)
+    )
+
+    assert tracker.turn_on_count("light.kitchen") == 0
+    assert tracker.turn_off_count("light.kitchen") == 0
+    assert record[ATTR_DROPOUTS] == 2
+
+
+async def test_startup_state_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
+    """old_state is None when an entity joins the state machine on restart."""
+    _, tracker = await _setup(hass)
+    record = tracker._ensure("light.kitchen")
+
+    tracker._apply_transition(record, None, "on", datetime.now(timezone.utc))
+    assert tracker.turn_on_count("light.kitchen") == 0

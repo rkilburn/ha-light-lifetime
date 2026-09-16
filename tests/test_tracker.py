@@ -383,3 +383,46 @@ async def test_open_interval_is_settled_for_a_light_that_no_longer_exists(
     tracker._handle_started(hass)
 
     assert record[ATTR_ON_SINCE] is None
+
+
+async def test_deleted_bulb_stops_counting_but_keeps_its_history(
+    hass: HomeAssistant,
+) -> None:
+    """A bulb removed from Home Assistant must not stay in the fleet totals."""
+    ent_reg = er.async_get(hass)
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-gone", suggested_object_id="gone"
+    ).entity_id
+    hass.states.async_set(source, "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker._data[source][ATTR_ON_SECONDS] = 7200.0
+    assert tracker.lights_tracked() == 1
+
+    ent_reg.async_remove(source)
+    hass.states.async_remove(source)
+    await hass.async_block_till_done()
+
+    assert tracker.should_track(source) is False
+    assert tracker.lights_tracked() == 0
+    # The ledger still holds the history, as it does for any untracked light.
+    assert tracker._data[source][ATTR_ON_SECONDS] == 7200.0
+
+
+async def test_yaml_light_without_a_registry_entry_is_still_tracked(
+    hass: HomeAssistant,
+) -> None:
+    """Existence is registry OR state machine; YAML lights have only the latter."""
+    hass.states.async_set("light.yaml_only", "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    assert er.async_get(hass).async_get("light.yaml_only") is None
+    assert tracker.should_track("light.yaml_only") is True
+
+
+async def test_unknown_entity_id_is_not_tracked(hass: HomeAssistant) -> None:
+    """An id that names nothing cannot be a light to track."""
+    _, tracker = await _setup(hass)
+    assert tracker.should_track("light.never_existed") is False

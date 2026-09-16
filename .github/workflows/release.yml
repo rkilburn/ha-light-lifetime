@@ -1,0 +1,120 @@
+# Cutting a release is a deliberate act, so this runs only when somebody asks
+# for it: Actions -> Release -> Run workflow. It bumps the manifest, tags, and
+# creates the GitHub release in one go, because a tag whose manifest still
+# carries the previous version ships a build that misreports itself in Home
+# Assistant's UI and diagnostics.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (e.g. 0.5.0)"
+        required: true
+        type: string
+      draft:
+        description: "Create the release as a draft, so the notes can be edited before it goes out"
+        required: false
+        default: true
+        type: boolean
+
+# Needed to push the release commit and tag, and to create the release.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Tags are needed to tell whether this version was already released,
+          # and history for the generated release notes.
+          fetch-depth: 0
+
+      - name: Check the run targets main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are cut from main; this run is on $GITHUB_REF."
+            exit 1
+          fi
+
+      # Inputs are interpolated through env rather than directly into the
+      # script, so a crafted version string cannot run as shell.
+      - name: Validate the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must look like 1.2.3, got '$VERSION'."
+            exit 1
+          fi
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - run: pip install -r requirements-test.txt
+
+      # A release that ships a red test suite costs more to undo than this
+      # minute costs to spend.
+      - run: pytest tests/ -q
+
+      - name: Bump the manifest version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, re
+
+          version = os.environ["VERSION"]
+          path = pathlib.Path("custom_components/light_lifetime/manifest.json")
+          source = path.read_text()
+          # A targeted substitution keeps hassfest's required key order and the
+          # file's formatting; re-serialising the whole document would not.
+          bumped, count = re.subn(r'("version":\s*")[^"]*(")', rf"\g<1>{version}\g<2>", source)
+          if count != 1:
+              raise SystemExit(f"expected exactly one version key, found {count}")
+          if json.loads(bumped)["version"] != version:
+              raise SystemExit("manifest did not come back with the requested version")
+          path.write_text(bumped)
+          PY
+
+      - name: Commit, tag and push
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add custom_components/light_lifetime/manifest.json
+          # Already at this version (a re-run after a half-failed release, or a
+          # manual bump) leaves nothing to commit, which is not an error.
+          if git diff --cached --quiet; then
+            echo "Manifest already at $VERSION; tagging the existing commit."
+          else
+            git commit -m "Release $VERSION"
+          fi
+          git tag "v$VERSION"
+          git push origin HEAD:main
+          git push origin "v$VERSION"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          DRAFT: ${{ inputs.draft }}
+        run: |
+          if [ "$DRAFT" = "true" ]; then
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes --draft
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+          fi
+          url="$(gh release view "v$VERSION" --json url --jq .url)"
+          echo "Released [v$VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"

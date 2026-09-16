@@ -250,6 +250,17 @@ python3 -m venv .venv
 .venv/bin/python -m pytest tests/ -v
 ```
 
+### Releasing
+
+Actions → **Release** → Run workflow, and give it a version like `0.5.0`. It runs the tests,
+bumps `manifest.json`, commits that as `Release <version>`, tags `v<version>` and creates the
+GitHub release. The manifest bump has to ride along with the tag: HACS installs from the tag,
+but Home Assistant reads the version from the manifest, so a tag without the bump ships a build
+that misreports itself.
+
+The release is created as a **draft** by default, with generated notes as a starting point —
+edit them and publish when they read the way you want. Untick *draft* to publish immediately.
+
 ## License
 
 MIT

@@ -242,6 +242,12 @@ copy of the numbers, so the values are recoverable even if the ledger is lost.
 
 **Renames are followed.** If you change a light's `entity_id`, its counters move with it.
 
+## Brand assets
+
+`custom_components/light_lifetime/brand/` holds `icon.png` (256x256) and `icon@2x.png` (512x512).
+Since Home Assistant 2026.3 custom integrations serve their own brand images from the repository,
+so there is no entry in the legacy `home-assistant/brands` `custom_integrations` folder.
+
 ## Development
 
 ```bash

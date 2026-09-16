@@ -22,14 +22,11 @@ jobs:
   hacs:
     name: HACS
     runs-on: ubuntu-latest
-    # `brands` needs the integration listed in home-assistant/brands, which
-    # is a separate PR. Drop this ignore once that merges.
     steps:
       - uses: actions/checkout@v5
       - uses: hacs/action@main
         with:
           category: integration
-          ignore: brands
 
   tests:
     name: Tests

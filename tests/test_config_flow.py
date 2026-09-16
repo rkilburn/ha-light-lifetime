@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import pathlib
+
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -10,11 +13,13 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.light_lifetime.const import (
     CONF_COUNT_DOWNTIME,
+    CONF_EXCLUDE_AGGREGATES,
     CONF_EXCLUDED_ENTITIES,
     CONF_INCLUDED_ENTITIES,
     CONF_MANUFACTURERS,
     CONF_MODE,
     CONF_SENSORS,
+    CONF_SUMMARY_SENSORS,
     DOMAIN,
     MODE_ALL,
     MODE_SELECTED,
@@ -171,13 +176,19 @@ async def test_options_flow_prefills_and_updates(hass: HomeAssistant) -> None:
 
 
 async def test_single_instance_only(hass: HomeAssistant) -> None:
+    """A second entry aborts before the flow asks anything.
+
+    The reason is Home Assistant's own: with single_config_entry declared the
+    flow manager refuses ahead of async_step_user, so the unique_id guard
+    inside the step never gets a chance to answer "already_configured".
+    """
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={}, unique_id=DOMAIN)
     entry.add_to_hass(hass)
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "single_instance_allowed"
 
 
 async def test_sensor_picker_defaults_to_every_sensor(hass: HomeAssistant) -> None:
@@ -225,3 +236,112 @@ async def test_sensor_picker_prefills_from_current_options(
         k for k in result["data_schema"].schema if str(k) == CONF_SENSORS
     )
     assert field.default() == ["on_hours", "turn_off_count"]
+
+
+async def test_manifest_declares_a_single_config_entry() -> None:
+    """The flow already enforces it; the manifest is what the UI reads.
+
+    Without the declaration Home Assistant still offers "Add entry" and only
+    refuses once the user has walked the whole flow.
+    """
+    manifest = json.loads(
+        (
+            pathlib.Path(__file__).parent.parent
+            / "custom_components"
+            / "light_lifetime"
+            / "manifest.json"
+        ).read_text()
+    )
+    assert manifest["single_config_entry"] is True
+
+
+async def test_switching_modes_keeps_the_other_mode_settings(
+    hass: HomeAssistant,
+) -> None:
+    """Visiting the opt-in step must not throw away the opt-out settings.
+
+    Each mode's step shows only its own fields, so submitting one used to
+    write an options dict with the other mode's keys missing entirely -- and
+    switching back offered them empty, with no hint they had ever been set.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={
+            CONF_MODE: MODE_ALL,
+            CONF_MANUFACTURERS: ["Signify Netherlands B.V."],
+            CONF_EXCLUDED_ENTITIES: ["light.hall"],
+            CONF_SENSORS: ["on_hours"],
+        },
+        unique_id=DOMAIN,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_MODE: MODE_SELECTED}
+    )
+    await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            CONF_INCLUDED_ENTITIES: ["light.kitchen"],
+            CONF_SENSORS: ["on_hours"],
+            CONF_SUMMARY_SENSORS: True,
+            CONF_COUNT_DOWNTIME: False,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_MODE] == MODE_SELECTED
+    assert entry.options[CONF_MANUFACTURERS] == ["Signify Netherlands B.V."]
+    assert entry.options[CONF_EXCLUDED_ENTITIES] == ["light.hall"]
+
+    # ...and they are offered back, still filled in, on the way to "all".
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_MODE: MODE_ALL}
+    )
+    defaults = result["data_schema"]({SECTION_BRANDS: {}})
+    assert defaults[SECTION_BRANDS][CONF_MANUFACTURERS] == ["Signify Netherlands B.V."]
+    assert defaults[CONF_EXCLUDED_ENTITIES] == ["light.hall"]
+
+
+async def test_clearing_a_field_in_its_own_mode_still_clears_it(
+    hass: HomeAssistant,
+) -> None:
+    """Carrying values over must not make an emptied field un-clearable."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={},
+        options={
+            CONF_MODE: MODE_ALL,
+            CONF_MANUFACTURERS: ["Signify Netherlands B.V."],
+            CONF_EXCLUDED_ENTITIES: ["light.hall"],
+        },
+        unique_id=DOMAIN,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {CONF_MODE: MODE_ALL}
+    )
+    await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            SECTION_BRANDS: {CONF_MANUFACTURERS: []},
+            CONF_EXCLUDED_ENTITIES: [],
+            CONF_EXCLUDE_AGGREGATES: True,
+            CONF_SENSORS: list(SENSOR_KEYS),
+            CONF_SUMMARY_SENSORS: True,
+            CONF_COUNT_DOWNTIME: False,
+        },
+    )
+    await hass.async_block_till_done()
+
+    assert entry.options[CONF_MANUFACTURERS] == []
+    assert entry.options[CONF_EXCLUDED_ENTITIES] == []

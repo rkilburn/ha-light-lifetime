@@ -16,6 +16,7 @@ from custom_components.light_lifetime.const import (
     ATTR_ON_SINCE,
     CONF_COUNT_DOWNTIME,
     DOMAIN,
+    SOURCE_MANUAL,
     SOURCE_REGISTRY,
     SOURCE_UNKNOWN,
 )
@@ -317,3 +318,151 @@ async def test_startup_state_is_not_a_switch_cycle(hass: HomeAssistant) -> None:
 
     tracker._apply_transition(record, None, "on", datetime.now(timezone.utc))
     assert tracker.turn_on_count("light.kitchen") == 0
+
+
+async def test_downtime_interval_is_settled_when_the_light_came_back_off(
+    hass: HomeAssistant,
+) -> None:
+    """A light on at shutdown but off at startup stops accruing.
+
+    count_downtime leaves the interval open across the outage on purpose, and
+    nothing downstream ever closes it -- the next transition is off -> on,
+    which only re-anchors. Left alone the light accrues on-time for as long as
+    it sits dark.
+    """
+    from homeassistant.util import dt as dt_util
+
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    opened = dt_util.utcnow() - timedelta(days=7)
+    record = tracker._ensure("light.kitchen")
+    record[ATTR_ON_SINCE] = opened.isoformat()
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] is None
+    assert tracker.is_on("light.kitchen") is False
+    # The outage itself still counts -- that is what the option asks for --
+    # but it stops at startup rather than running on.
+    assert tracker.on_seconds("light.kitchen") == pytest.approx(7 * 86400, abs=5)
+
+
+async def test_downtime_interval_survives_when_the_light_is_still_on(
+    hass: HomeAssistant,
+) -> None:
+    """Settling must not disturb a light that really is lit at startup."""
+    from homeassistant.util import dt as dt_util
+
+    hass.states.async_set("light.kitchen", "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    opened = (dt_util.utcnow() - timedelta(hours=6)).isoformat()
+    record = tracker._ensure("light.kitchen")
+    record[ATTR_ON_SINCE] = opened
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] == opened
+    assert tracker.is_on("light.kitchen") is True
+
+
+async def test_open_interval_is_settled_for_a_light_that_no_longer_exists(
+    hass: HomeAssistant,
+) -> None:
+    """A bulb removed during an outage never appears in the discovery loop."""
+    from homeassistant.util import dt as dt_util
+
+    _, tracker = await _setup(hass, {CONF_COUNT_DOWNTIME: True})
+
+    record = tracker._ensure("light.removed_while_down")
+    record[ATTR_ON_SINCE] = (dt_util.utcnow() - timedelta(days=2)).isoformat()
+    assert hass.states.get("light.removed_while_down") is None
+
+    tracker._handle_started(hass)
+
+    assert record[ATTR_ON_SINCE] is None
+
+
+async def test_deleted_bulb_stops_counting_but_keeps_its_history(
+    hass: HomeAssistant,
+) -> None:
+    """A bulb removed from Home Assistant must not stay in the fleet totals."""
+    ent_reg = er.async_get(hass)
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-gone", suggested_object_id="gone"
+    ).entity_id
+    hass.states.async_set(source, "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker._data[source][ATTR_ON_SECONDS] = 7200.0
+    assert tracker.lights_tracked() == 1
+
+    ent_reg.async_remove(source)
+    hass.states.async_remove(source)
+    await hass.async_block_till_done()
+
+    assert tracker.should_track(source) is False
+    assert tracker.lights_tracked() == 0
+    # The ledger still holds the history, as it does for any untracked light.
+    assert tracker._data[source][ATTR_ON_SECONDS] == 7200.0
+
+
+async def test_yaml_light_without_a_registry_entry_is_still_tracked(
+    hass: HomeAssistant,
+) -> None:
+    """Existence is registry OR state machine; YAML lights have only the latter."""
+    hass.states.async_set("light.yaml_only", "on")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    assert er.async_get(hass).async_get("light.yaml_only") is None
+    assert tracker.should_track("light.yaml_only") is True
+
+
+async def test_unknown_entity_id_is_not_tracked(hass: HomeAssistant) -> None:
+    """An id that names nothing cannot be a light to track."""
+    _, tracker = await _setup(hass)
+    assert tracker.should_track("light.never_existed") is False
+
+
+async def test_reset_records_a_manual_first_seen(hass: HomeAssistant) -> None:
+    """A reset date is real, but it did not come from the registry."""
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker.reset("light.kitchen")
+
+    assert tracker.first_seen_source("light.kitchen") == SOURCE_MANUAL
+    assert tracker.first_seen("light.kitchen") is not None
+
+
+async def test_set_values_records_a_manual_first_seen(hass: HomeAssistant) -> None:
+    """Same for a date the user states outright."""
+    hass.states.async_set("light.kitchen", "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    stated = datetime(2023, 6, 1, 12, 0, tzinfo=timezone.utc)
+    tracker.set_values("light.kitchen", first_seen=stated)
+
+    assert tracker.first_seen_source("light.kitchen") == SOURCE_MANUAL
+    assert tracker.first_seen("light.kitchen") == stated
+
+
+async def test_only_the_registry_reports_a_registry_source(hass: HomeAssistant) -> None:
+    """SOURCE_REGISTRY now means exactly what it says."""
+    ent_reg = er.async_get(hass)
+    source = ent_reg.async_get_or_create(
+        "light", "hue", "bulb-dated", suggested_object_id="dated"
+    ).entity_id
+    hass.states.async_set(source, "off")
+    await hass.async_block_till_done()
+    _, tracker = await _setup(hass)
+
+    tracker._ensure(source)
+    assert tracker.first_seen_source(source) == SOURCE_REGISTRY

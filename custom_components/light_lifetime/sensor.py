@@ -31,6 +31,7 @@ from .const import (
     SENSOR_KEYS,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
+    SIGNAL_RENAMED,
     SIGNAL_UPDATED,
     SOURCE_UNKNOWN,
 )
@@ -143,6 +144,22 @@ def _async_remove_orphans(
         source_id, key = split
         source_entity_id = by_registry_id.get(source_id)
         if source_entity_id is None:
+            # A registry id that no longer resolves means the bulb was deleted,
+            # so nothing will ever update this sensor again. The registry is
+            # fully loaded before any config entry is set up, so an id shaped
+            # like one and missing from it really is gone.
+            #
+            # `_stable_id` falls back to the entity_id for lights that were
+            # never registered, and those platforms may not have set up yet at
+            # this point, so an entity_id-shaped source is left alone rather
+            # than risk deleting a live sensor over a startup race.
+            if "." in source_id:
+                continue
+            registry.async_remove(sensor.entity_id)
+            _LOGGER.debug(
+                "Removed %s; its source light is no longer registered",
+                sensor.entity_id,
+            )
             continue
         if key not in keys:
             registry.async_remove(sensor.entity_id)
@@ -196,11 +213,23 @@ class LightLifetimeSensorBase(SensorEntity):
         def _refresh() -> None:
             self.async_write_ha_state()
 
+        @callback
+        def _renamed(old_id: str, new_id: str) -> None:
+            # The tracker moves the ledger key on a rename; follow it, or this
+            # sensor keeps asking about an entity_id that no longer has a
+            # record and reports 0 from here on.
+            if old_id == self._source_entity_id:
+                self._source_entity_id = new_id
+                self.async_write_ha_state()
+
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_UPDATED, _updated)
         )
         self.async_on_remove(
             async_dispatcher_connect(self.hass, SIGNAL_REFRESH, _refresh)
+        )
+        self.async_on_remove(
+            async_dispatcher_connect(self.hass, SIGNAL_RENAMED, _renamed)
         )
 
     @property

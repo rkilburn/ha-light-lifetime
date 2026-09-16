@@ -53,7 +53,9 @@ from .const import (
     SAVE_DELAY,
     SIGNAL_NEW_ENTITY,
     SIGNAL_REFRESH,
+    SIGNAL_RENAMED,
     SIGNAL_UPDATED,
+    SOURCE_MANUAL,
     SOURCE_REGISTRY,
     SOURCE_UNKNOWN,
     STORAGE_KEY,
@@ -203,9 +205,34 @@ class LightLifetimeTracker:
             # Re-open an interval for anything already lit at startup.
             if state.state == STATE_ON and record.get(ATTR_ON_SINCE) is None:
                 record[ATTR_ON_SINCE] = now.isoformat()
+
+        self._settle_unlit_intervals(now)
         self._schedule_save()
         for entity_id in discovered:
             async_dispatcher_send(self.hass, SIGNAL_NEW_ENTITY, entity_id)
+
+    @callback
+    def _settle_unlit_intervals(self, now: datetime) -> None:
+        """Close intervals an outage left open on lights that are not lit now.
+
+        With ``count_downtime`` enabled ``_close_stale_intervals`` deliberately
+        leaves an interval open so the outage counts as on-time. Nothing else
+        ever closes it: the light's next transition is ``off -> on``, which only
+        re-anchors ``on_since``, so a light that came back dark would accrue
+        on-time indefinitely while sitting off. Startup is the honest end of
+        such an interval -- the light was assumed on through the outage, and is
+        demonstrably off now.
+
+        Lights with no state at all are settled the same way; a bulb removed
+        while Home Assistant was down is never visited by the discovery loop.
+        """
+        for entity_id, record in self._data.items():
+            if not record.get(ATTR_ON_SINCE):
+                continue
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state != STATE_ON:
+                self._close_interval(record, now)
+                _LOGGER.debug("Settled open interval for %s at startup", entity_id)
 
     # ------------------------------------------------------------------
     # Event handling
@@ -284,6 +311,10 @@ class LightLifetimeTracker:
             return
         self._data[new_id] = self._data.pop(old_id)
         self._schedule_save()
+        # Sensors capture their source entity_id at construction, so moving the
+        # ledger key alone would leave them reading an id that no longer has a
+        # record -- reporting 0 and never updating again.
+        async_dispatcher_send(self.hass, SIGNAL_RENAMED, old_id, new_id)
         _LOGGER.debug("Migrated lifetime counters %s -> %s", old_id, new_id)
 
     async def _handle_heartbeat(self, _now: datetime) -> None:
@@ -328,6 +359,16 @@ class LightLifetimeTracker:
 
     @callback
     def _should_track(self, entity_id: str) -> bool:
+        entry = er.async_get(self.hass).async_get(entity_id)
+        # A light that exists nowhere in Home Assistant any more -- a deleted
+        # bulb, or an id that was never one -- keeps its history in the ledger
+        # but stops counting. Otherwise it inflates the fleet totals forever
+        # and its sensors are rebuilt on every reload under a fresh unique_id,
+        # because `_stable_id` has no registry id left to key on. The state
+        # machine is checked too: YAML lights are real but never registered.
+        if entry is None and self.hass.states.get(entity_id) is None:
+            return False
+
         # Opt-in mode: only the explicitly chosen lights, nothing else. New
         # lights are deliberately not picked up -- that is the point of opting in.
         if self._mode == MODE_SELECTED:
@@ -335,7 +376,6 @@ class LightLifetimeTracker:
         if entity_id in self._excluded_entities:
             return False
 
-        entry = er.async_get(self.hass).async_get(entity_id)
         device = None
         if entry is not None and entry.device_id:
             device = dr.async_get(self.hass).async_get(entry.device_id)
@@ -639,7 +679,7 @@ class LightLifetimeTracker:
             ATTR_TURN_ON_COUNT: 0,
             ATTR_TURN_OFF_COUNT: 0,
             ATTR_FIRST_SEEN: now.isoformat(),
-            ATTR_FIRST_SEEN_SOURCE: SOURCE_REGISTRY,
+            ATTR_FIRST_SEEN_SOURCE: SOURCE_MANUAL,
             ATTR_TRACKED_SINCE: now.isoformat(),
             ATTR_ON_SINCE: now.isoformat()
             if state is not None and state.state == STATE_ON
@@ -673,6 +713,6 @@ class LightLifetimeTracker:
             record[ATTR_TURN_OFF_COUNT] = int(turn_off_count)
         if first_seen is not None:
             record[ATTR_FIRST_SEEN] = dt_util.as_utc(first_seen).isoformat()
-            record[ATTR_FIRST_SEEN_SOURCE] = SOURCE_REGISTRY
+            record[ATTR_FIRST_SEEN_SOURCE] = SOURCE_MANUAL
         self._schedule_save()
         async_dispatcher_send(self.hass, SIGNAL_UPDATED, entity_id)

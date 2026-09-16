@@ -13,11 +13,14 @@ from homeassistant.core import (
     ServiceResponse,
     SupportsResponse,
 )
-from homeassistant.helpers import config_validation as cv
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, SERVICE_BACKFILL, SERVICE_RESET, SERVICE_SET_VALUES
 from .tracker import LightLifetimeTracker
+
+LIGHT_DOMAIN = "light"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +28,10 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-_ENTITY_SELECTOR = vol.All(cv.ensure_list, [cv.entity_id])
+# Every one of these actions addresses lights, so the domain is part of the
+# contract rather than a UI nicety -- the selectors in services.yaml only
+# constrain the picker, not a call made from an automation or the API.
+_ENTITY_SELECTOR = vol.All(cv.ensure_list, [cv.entity_domain(LIGHT_DOMAIN)])
 
 RESET_SCHEMA = vol.Schema({vol.Required(ATTR_ENTITY_ID): _ENTITY_SELECTOR})
 
@@ -55,13 +61,37 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     def _trackers() -> list[LightLifetimeTracker]:
         return list(hass.data.get(DOMAIN, {}).values())
 
+    def _verified(call: ServiceCall) -> list[str]:
+        """Reject lights Home Assistant does not have.
+
+        Both of these actions write a ledger record for whatever they are
+        given, so a typo used to leave a permanent entry in .storage for a
+        light that never existed -- one that then counted towards the fleet
+        totals and grew sensors of its own.
+        """
+        entity_ids: list[str] = call.data[ATTR_ENTITY_ID]
+        registry = er.async_get(hass)
+        unknown = [
+            entity_id
+            for entity_id in entity_ids
+            if registry.async_get(entity_id) is None
+            and hass.states.get(entity_id) is None
+        ]
+        if unknown:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_entity",
+                translation_placeholders={"entity_id": ", ".join(sorted(unknown))},
+            )
+        return entity_ids
+
     async def _handle_reset(call: ServiceCall) -> None:
-        for entity_id in call.data[ATTR_ENTITY_ID]:
+        for entity_id in _verified(call):
             for tracker in _trackers():
                 tracker.reset(entity_id)
 
     async def _handle_set_values(call: ServiceCall) -> None:
-        for entity_id in call.data[ATTR_ENTITY_ID]:
+        for entity_id in _verified(call):
             for tracker in _trackers():
                 tracker.set_values(
                     entity_id,
